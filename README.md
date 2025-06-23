@@ -35,35 +35,32 @@ This project uses a `Makefile` to automate setup and common tasks.
     make help
     ```
 
-## MongoDB Setup with Docker and Colima
+## Install Docker and Colima
 
 This project requires MongoDB to be running locally. We recommend using **Docker** and **Colima** for a lightweight, consistent environment.
 
-### Step 1: Start Colima
+### Step 1: Install Colima
 
 ```bash
-colima start
+brew install colima
 ```
 
-### Step 2: Pull the MongoDB Docker Image
-
-```bash
-docker pull mongodb/mongodb-community-server:latest
-```
-### Step 3: Run the MongoDB Container
+### Step 2: Install Docker
 
 ```bash
-docker run --name mongodb \
-  -p 27017:27017 \
-  -d mongodb/mongodb-community-server:latest
+brew install docker
+```
+### Step 3: Setup and Run mongoDB
+
+```bash
+make mongo
 ```
 
-### Step 4: Verify MongoDB is Running
+### Step 4: Import sample data to mongoDB
 
 ```
-docker container ls
+make setup
 ```
-Look for a container named `mongodb` with port `27017` exposed.
 
 ### Step 5: Connect via `mongosh`
 
@@ -96,6 +93,12 @@ make run
 ```
 The API will be available at http://127.0.0.1:5000.
 
+### (Optional) How to Install the API dependencies without running it
+
+```bash
+make install
+```
+
 ## How to Run Linting
 This project uses **Pylint** to check code quality and style.
 
@@ -104,7 +107,6 @@ To run the linter, run the following command:
 ```bash
 make lint
 ```
-
 
 ## How to Run Tests and Check Coverage
 This project uses **coverage.py** to measure code coverage.
@@ -124,7 +126,7 @@ command to clean out the old data.
 
 To remove the virtual environment and Python cache files:
 ```bash
-make clean
+make cleanup
 ```
 This is useful if you want to start with a fresh environment.
 

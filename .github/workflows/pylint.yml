@@ -25,5 +25,5 @@ jobs:
 
       - name: Run pylint
         run: |
-          ./run_pylint.sh
+          ./scripts/run_pylint.sh
 

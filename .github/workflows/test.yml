@@ -40,4 +40,4 @@ jobs:
           PROJECT_DATABASE: ${{ secrets.PROJECT_DATABASE }}
           PROJECT_COLLECTION: ${{ secrets.PROJECT_COLLECTION}}
         run: |
-          ./run_tests.sh
+          ./scripts/run_tests.sh
