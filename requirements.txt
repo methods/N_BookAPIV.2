@@ -4,3 +4,4 @@ pylint
 coverage
 pymongo
 python-dotenv
+Authlib
