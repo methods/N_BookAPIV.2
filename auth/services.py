@@ -14,4 +14,11 @@ APP_SECRET_KEY = os.getenv('SECRET_KEY')
 
 def init_oauth(app):
     """Initialize the OAuth client, attach it to the Flask app"""
-    # oauth.init_app(app)
+    oauth.init_app(app)
+    oauth.register(
+        name='google',
+        client_id=GOOGLE_CLIENT_ID,
+        client_secret=GOOGLE_CLIENT_SECRET,
+        server_metadata_url=f'https://accounts.google.com/.well-known/openid-configuration',
+        client_kwargs={'scope': 'openid email'}
+    )
