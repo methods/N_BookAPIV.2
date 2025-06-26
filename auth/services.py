@@ -22,3 +22,7 @@ def init_oauth(app):
         server_metadata_url=f'https://accounts.google.com/.well-known/openid-configuration',
         client_kwargs={'scope': 'openid email'}
     )
+
+def login(app):
+    """Login to Google OAuth"""
+    pass
