@@ -1,10 +1,11 @@
 # pylint: disable=missing-docstring
 from unittest.mock import MagicMock
+from flask import redirect
 import pytest
 import auth.services as auth_services
 from app import app
 
-@pytest.fixture(name="client")
+@pytest.fixture(name="_client")
 def client_fixture():
     app.config['TESTING'] = True
     auth_services.init_oauth(app)
@@ -36,22 +37,21 @@ def test_init_oauth_calls_authlib_correctly(mocker):
     mock_init_app.assert_called_once_with(mock_app)
     mock_register.assert_called_once_with(**expected_call_args)
 
-def test_login_service_function_calls_authlib_redirect(mocker, client):
+def test_login_service_function_calls_authlib_redirect(mocker, _client):
     """ When login service function is called, it should call Authlib's authorise redirect"""
     # Mock the dependency of the service function, which is the Authlib client
     mock_service_redirect = mocker.patch('auth.services.oauth.google.authorize_redirect')
     # mock_service_redirect mocks the Authlib function.
     # Authlib would here generate a long secure URL which is sent to the client
     # This URL is sent to the client with 302 causing it to be automatically redirected
-    from flask import redirect
     expected_redirect_url = redirect('http://localhost:5000/oauth/authorized')
     mock_service_redirect.return_value = expected_redirect_url
     expected_callback_uri = 'http://localhost:5000/auth/callback'
 
     # Call the login function
-    response = auth_services.login(app)
+    response = auth_services.login()
 
     # Assert
     mock_service_redirect.assert_called_once_with(expected_callback_uri)
     assert response.status_code == 302
-    assert response.location == expected_redirect_url
+    assert response == expected_redirect_url
