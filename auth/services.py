@@ -20,10 +20,14 @@ def init_oauth(app):
         client_id=GOOGLE_CLIENT_ID,
         client_secret=GOOGLE_CLIENT_SECRET,
         server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
+        # This URL is the
         client_kwargs={'scope': 'openid email'}
     )
 
-def login():
+def oauth_login():
     """Login to Google OAuth"""
     redirect_uri = 'http://localhost:5000/auth/callback'
     return oauth.google.authorize_redirect(redirect_uri)
+
+def oauth_authorize():
+    pass

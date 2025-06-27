@@ -37,7 +37,7 @@ def test_init_oauth_calls_authlib_correctly(mocker):
     mock_init_app.assert_called_once_with(mock_app)
     mock_register.assert_called_once_with(**expected_call_args)
 
-def test_login_service_function_calls_authlib_redirect(mocker, _client):
+def test_oauth_login_service_function_calls_authlib_redirect(mocker, _client):
     """ When login service function is called, it should call Authlib's authorise redirect"""
     # Mock the dependency of the service function, which is the Authlib client
     mock_service_redirect = mocker.patch('auth.services.oauth.google.authorize_redirect')
@@ -49,7 +49,7 @@ def test_login_service_function_calls_authlib_redirect(mocker, _client):
     expected_callback_uri = 'http://localhost:5000/auth/callback'
 
     # Call the login function
-    response = auth_services.login()
+    response = auth_services.oauth_login()
 
     # Assert
     mock_service_redirect.assert_called_once_with(expected_callback_uri)
