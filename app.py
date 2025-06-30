@@ -9,6 +9,7 @@ from werkzeug.exceptions import NotFound
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 from mongo_helper import insert_book_to_mongo
+from auth.views import auth_bp
 from data import books
 
 app = Flask(__name__)
@@ -18,6 +19,8 @@ load_dotenv()
 app.config['MONGO_URI'] = os.getenv('MONGO_CONNECTION')
 app.config['DB_NAME'] = os.getenv('PROJECT_DATABASE')
 app.config['COLLECTION_NAME'] = os.getenv('PROJECT_COLLECTION')
+# Register the blueprint with the main app, applying a URL prefix
+app.register_blueprint(auth_bp, url_prefix='/auth')
 
 def get_book_collection():
     """Initialize the mongoDB connection"""

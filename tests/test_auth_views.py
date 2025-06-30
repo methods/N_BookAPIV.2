@@ -1,5 +1,5 @@
 # pylint: disable=missing-docstring
-from unittest.mock import MagicMock
+# from unittest.mock import MagicMock
 from flask import redirect
 import pytest
 import auth.services as auth_services
@@ -27,4 +27,4 @@ def test_auth_login_route_redirects_correctly(mocker, client):
     # Assert
     assert mock_service_login.call_count == 1
     assert response.status_code == 302
-    assert response.location == expected_redirect
+    assert response.location == expected_redirect.location

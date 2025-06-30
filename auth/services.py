@@ -30,4 +30,5 @@ def oauth_login():
     return oauth.google.authorize_redirect(redirect_uri)
 
 def oauth_authorize():
-    pass
+    """Authorize the OAuth client"""
+    return
