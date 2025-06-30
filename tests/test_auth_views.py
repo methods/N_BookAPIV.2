@@ -1,6 +1,7 @@
 # pylint: disable=missing-docstring
 # from unittest.mock import MagicMock
-from flask import redirect
+from flask import redirect, session
+from bson.objectid import ObjectId # This is imported so we can create a mongoDB-like ObjectId
 import pytest
 import auth.services as auth_services
 from app import app
@@ -13,7 +14,7 @@ def client_fixture():
 
 def test_auth_login_route_redirects_correctly(mocker, client):
     """ When the /auth/login route is called,
-    it should call the auth_login service function
+    it should call the oauth_login service function
     then send a 302 redirect to the appropriate page"""
     # Mock the oauth_login service function
     mock_service_login = mocker.patch('auth.services.oauth_login')
@@ -21,10 +22,40 @@ def test_auth_login_route_redirects_correctly(mocker, client):
     expected_redirect = redirect('https://google.com/auth?fake_params')
     mock_service_login.return_value = expected_redirect
 
-    # Call the auth.login route
+    # Call the auth/login route
     response = client.get('/auth/login')
 
     # Assert
     assert mock_service_login.call_count == 1
     assert response.status_code == 302
     assert response.location == expected_redirect.location
+
+def test_auth_callback_route_redirects_correctly(mocker, client):
+    """ When the /auth/callback route is called,
+    it should call the oauth_authorize service function and expect
+    a 302 redirect and that a session cookie is returned.
+    """
+    # Create a fake user document to mock the response from mongoDB *after*
+    # the oauth_authorize function receives a token back from the oauth service.
+    fake_user_id = ObjectId() # Creates a new ObjectId using mongoDB bson
+    mock_user_document = {
+        '_id': fake_user_id,
+        'email': 'test.user@example.com',
+        'roles': ['viewer']
+    }
+    # Establish the 'default' page for redirection after successful authorization
+    expected_redirect_uri = 'http://localhost:5000/books'
+
+    # Mock the oauth_authorize service function
+    mock_service_authorize = mocker.patch('auth.services.oauth_authorize')
+    # The mock function will return the mock user document
+    mock_service_authorize.return_value = mock_user_document
+
+    # Call the auth/callback route
+    response = client.get('/auth/callback')
+
+    # Assert
+    assert mock_service_authorize.call_count == 1
+    assert response.status_code == 302
+    assert session['user_id'] == str(fake_user_id)
+    assert response.location == expected_redirect_uri
