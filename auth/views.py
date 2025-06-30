@@ -11,6 +11,7 @@ auth_bp = Blueprint('auth', __name__)
 @auth_bp.route('/login')
 def login():
     """Login to Google OAuth"""
+    # This route should simply call the relevant service function
     return services.oauth_login()
 
 def callback():
