@@ -3,12 +3,14 @@
 from flask import redirect, session
 from bson.objectid import ObjectId # This is imported so we can create a mongoDB-like ObjectId
 import pytest
+import os
 import auth.services as auth_services
 from app import app
 
 @pytest.fixture(name="client")
 def client_fixture():
     app.config['TESTING'] = True
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
     auth_services.init_oauth(app)
     return app.test_client()
 
@@ -30,7 +32,7 @@ def test_auth_login_route_redirects_correctly(mocker, client):
     assert response.status_code == 302
     assert response.location == expected_redirect.location
 
-def test_auth_callback_route_redirects_correctly(mocker, client):
+def test_auth_callback_route_redirects_correctly_on_successful_login(mocker, client):
     """ When the /auth/callback route is called,
     it should call the oauth_authorize service function and expect
     a 302 redirect and that a session cookie is returned.
@@ -51,11 +53,15 @@ def test_auth_callback_route_redirects_correctly(mocker, client):
     # The mock function will return the mock user document
     mock_service_authorize.return_value = mock_user_document
 
-    # Call the auth/callback route
-    response = client.get('/auth/callback')
+    with client: # This is needed to keep the session handling alive for the assertions, otherwise
+        # the request context and session expire as soon as the client.get occurs
+        # Call the auth/callback route
+        response = client.get('/auth/callback')
 
-    # Assert
-    assert mock_service_authorize.call_count == 1
+        # Assert
+        assert mock_service_authorize.call_count == 1
+        assert 'user_id' in session
+        assert session['user_id'] == str(fake_user_id)
+
     assert response.status_code == 302
-    assert session['user_id'] == str(fake_user_id)
     assert response.location == expected_redirect_uri
