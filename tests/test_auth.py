@@ -1,5 +1,6 @@
 # pylint: disable=missing-docstring
 from unittest.mock import MagicMock
+from bson.objectid import ObjectId
 from flask import redirect
 import pytest
 import auth.services as auth_services
@@ -55,3 +56,42 @@ def test_oauth_login_service_function_calls_authlib_redirect(mocker, _client):
     mock_service_redirect.assert_called_once_with(expected_callback_uri)
     assert response.status_code == 302
     assert response == expected_redirect_url
+
+def test_oauth_authorize_service_function_successfully_authorizes_user(mocker):
+    """
+    oauth_authorize should call the authlib function which handles the token exchange.
+    It should then call the mongoDB function to retrieve the user's info,
+    Then return the appropriate user document.
+    """
+
+    # Mock the authlib function being called
+    mock_authlib_call = mocker.patch('auth.services.oauth.google.authorize_access_token')
+    # Create a fake user profile to mock the google oauth response
+    fake_google_profile = {
+        'sub': 'google-id-12345',
+        'email': 'test.user@example.com',
+        'email_verified': True
+    }
+    # Tell the authlib mock function to return this contained in a dictionary
+    mock_authlib_call.return_value = {'userinfo': fake_google_profile}
+
+    # Mock the mongoDB function being called
+    mock_user_service_call = mocker.patch('auth.services.user_services.get_or_create_user_from_oidc')
+
+    # Create a fake user document to mock the database return
+    expected_user_document = {
+        '_id': ObjectId(),
+        'email': 'test.user@example.com',
+        'google_id': 'google-id-12345',
+        'roles': ['viewer']
+    }
+    # Tell the mock mongoDB function to return the document
+    mock_user_service_call.return_value = expected_user_document
+
+    # Call the function
+    user = auth_services.oauth_authorize()
+
+    # Assert
+    mock_authlib_call.assert_called_once()
+    mock_user_service_call.assert_called_once_with(fake_google_profile)
+    assert user == expected_user_document

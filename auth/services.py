@@ -3,6 +3,7 @@
 import os
 from dotenv import load_dotenv
 from authlib.integrations.flask_client import OAuth
+from database import user_services
 
 ## --MODULE LEVEL GLOBALS --
 oauth = OAuth()
@@ -32,4 +33,5 @@ def oauth_login():
 
 def oauth_authorize():
     """Authorize the OAuth client"""
+    user_document = user_services.get_or_create_user_from_oidc()
     return
