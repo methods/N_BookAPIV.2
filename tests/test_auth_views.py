@@ -1,9 +1,9 @@
 # pylint: disable=missing-docstring
 # from unittest.mock import MagicMock
+import os
 from flask import redirect, session
 from bson.objectid import ObjectId # This is imported so we can create a mongoDB-like ObjectId
 import pytest
-import os
 import auth.services as auth_services
 from app import app
 
@@ -53,8 +53,9 @@ def test_auth_callback_route_redirects_correctly_on_successful_login(mocker, cli
     # The mock function will return the mock user document
     mock_service_authorize.return_value = mock_user_document
 
-    with client: # This is needed to keep the session handling alive for the assertions, otherwise
-        # the request context and session expire as soon as the client.get occurs
+    with client: # The 'with' block makes the client behave like a stateful browser;
+        # the request context will then persist long enough for the assertions,
+        # without 'with' this context is torn down as soon as client.get completes.
         # Call the auth/callback route
         response = client.get('/auth/callback')
 
