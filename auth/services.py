@@ -32,6 +32,17 @@ def oauth_login():
     return oauth.google.authorize_redirect(redirect_uri)
 
 def oauth_authorize():
-    """Authorize the OAuth client"""
-    user_document = user_services.get_or_create_user_from_oidc()
-    return
+    """
+    Handles the OAuth token exchange and retrieves or creates a user.
+    """
+    # Call Authlib to handle the entire secure token exchange.
+    token = oauth.google.authorize_access_token()
+    # Authlib handles parsing of the token, get the 'userinfo' dictionary from it
+    profile = token.get('userinfo')
+    if not profile:
+        raise Exception("Could not retrieve user profile from OAuth token.")
+
+    # Call the mongoDB get or create user function passing the userinfo dictionary
+    user_document = user_services.get_or_create_user_from_oidc(profile)
+
+    return user_document
