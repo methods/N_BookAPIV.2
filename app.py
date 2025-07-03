@@ -8,7 +8,7 @@ from flask import Flask, request, jsonify
 from werkzeug.exceptions import NotFound
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
-from mongo_helper import insert_book_to_mongo
+from database.mongo_helper import insert_book_to_mongo
 from auth.views import auth_bp # Imports the blueprint object from the auth module
 from data import books
 
