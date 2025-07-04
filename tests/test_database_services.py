@@ -1,7 +1,8 @@
 # pylint: disable=missing-docstring
 import pytest
 from pymongo.errors import ConnectionFailure
-from unittest.mock import MagicMock
+from bson.objectid import ObjectId
+from unittest.mock import MagicMock, call
 from database.mongo_helper import insert_book_to_mongo
 from database import user_services
 
@@ -113,3 +114,47 @@ def test_get_users_collection_failure(mocker):
         user_services.get_users_collection()
 
     mock_mongo_client_class.assert_called_once()
+
+def test_get_or_create_user_with_new_user(mocker):
+    """
+    When get_or_create_user_from_oidc is called and no user is found in the collection,
+    it should create a new user and return it.
+    """
+    # Mock the database connection
+    mock_get_collection = mocker.patch('database.user_services.get_users_collection')
+    # Mock the collection object to be returned
+    mock_users_collection = MagicMock()
+    mock_get_collection.return_value = mock_users_collection
+
+    # Configure find_one to return None, simulating a new user
+    mock_users_collection.find_one.return_value = None
+
+    # Mock insert_one to simulate the DB assigning an _id and returning it
+    fake_new_id = ObjectId()
+    mock_users_collection.insert_one.return_value = MagicMock(inserted_id=fake_new_id)
+
+    # Create a fake profile that will be used for the database query
+    fake_profile = {
+        'sub': 'google-id-new-user',
+        'email': 'new.user@example.com',
+        'name': 'New User',
+        'email_verified': True
+    }
+
+    # Act
+    returned_user = user_services.get_or_create_user_from_oidc(fake_profile)
+
+    # Assert
+    mock_users_collection.find_one.assert_called_once_with({'google_id': 'google-id-new-user'})
+
+    # Check that insert_one was called once with the correct document
+    mock_users_collection.insert_one.assert_called_once()
+    inserted_doc = mock_users_collection.insert_one.call_args[0][0]
+    assert inserted_doc['google_id'] == 'google-id-new-user'
+    assert inserted_doc['roles'] == ['viewer']
+
+    # Check the function returns the correct dictionary with the _id field added
+    assert returned_user is not None
+    assert returned_user['google_id'] == 'google-id-new-user'
+    assert returned_user['_id'] == fake_new_id
+    assert returned_user['roles'] == ['viewer']
