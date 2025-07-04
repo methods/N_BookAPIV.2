@@ -1,6 +1,7 @@
 """ Contains all mongoDB user service functions """
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
+from datetime import datetime, timezone
 
 def get_users_collection():
     """Establishes a connection and returns the users collection."""
@@ -26,4 +27,19 @@ def get_or_create_user_from_oidc(profile):
     if existing_user:
         return existing_user
     else:
-        return None
+        # Prepare the new_user_doc
+        new_user_doc = {
+            'google_id': profile['sub'],
+            'email': profile['email'],
+            'name': profile.get('name'),
+            'roles': ['viewer'], # Assign default role
+            'createdAt': datetime.now(timezone.utc),
+            'lastLogin': datetime.now(timezone.utc)
+        }
+
+        # Insert this into the database
+        result = users_collection.insert_one(new_user_doc)
+
+        # Explicitly assign the ['_id'] field from the inserted_id
+        new_user_doc['_id'] = result.inserted_id
+        return new_user_doc
