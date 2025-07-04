@@ -1,4 +1,6 @@
 # pylint: disable=missing-docstring
+import pytest
+from pymongo.errors import ConnectionFailure
 from unittest.mock import MagicMock
 from database.mongo_helper import insert_book_to_mongo
 from database import user_services
@@ -85,3 +87,29 @@ def test_get_users_collection_success(mocker):
         serverSelectionTimeoutMS=5000
     )
     assert actual_collection == expected_collection
+
+def test_get_users_collection_failure(mocker):
+    """
+    If the mongoDB connection fails, when the collection is called
+    it should raise a ConnectionFailure.
+    """
+    # Mock the app as it's imported in the function
+    mock_app = MagicMock()
+    mock_app.config = {
+        'MONGO_URI': 'mongodb://fake-host:27017/',
+        'DB_NAME': 'fake_db'
+    }
+    mocker.patch('app.app', mock_app)
+
+    # Mock the MongoClient class to *raise an exception* when it's called.
+    mock_mongo_client_class = mocker.patch('database.user_services.MongoClient')
+    mock_mongo_client_class.side_effect = ConnectionFailure("Could not connect")
+
+    # Act & Assert
+    # Use pytest.raises to assert that the expected exception was thrown.
+    # The 'with' block will pass if a ConnectionFailure is raised inside it,
+    # and fail otherwise.
+    with pytest.raises(ConnectionFailure):
+        user_services.get_users_collection()
+
+    mock_mongo_client_class.assert_called_once()
