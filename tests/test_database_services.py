@@ -49,6 +49,6 @@ def test_get_or_create_user_with_existing_user(mocker):
     result = user_services.get_or_create_user_from_oidc(fake_profile)
 
     # Assert
-    mock_get_collection.find_one.assert_called_once_with(fake_profile)
-    mock_get_collection.insert_one.assert_not_called()
+    mock_get_collection.assert_called_once_with()
+    mock_collection_object.find_one.assert_called_once_with({'google_id': 'google-id-123'})
     assert result == existing_user_doc
