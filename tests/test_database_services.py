@@ -38,22 +38,22 @@ def test_get_or_create_user_with_existing_user(mocker):
     # Mock the database connection
     mock_get_collection = mocker.patch('database.user_services.get_users_collection')
     # Mock the collection object to be returned
-    mock_collection_object = MagicMock()
-    mock_get_collection.return_value = mock_collection_object
+    mock_users_collection = MagicMock()
+    mock_get_collection.return_value = mock_users_collection
 
     # Setup mock data
     fake_profile = {"sub": "google-id-123"}
     existing_user_doc = {"email": "editor.user@example.com", "google_id": "google-id-123"}
 
     # Configure the fake collection object's methods
-    mock_collection_object.find_one.return_value = existing_user_doc
+    mock_users_collection.find_one.return_value = existing_user_doc
 
     # Act
     result = user_services.get_or_create_user_from_oidc(fake_profile)
 
     # Assert
     mock_get_collection.assert_called_once_with()
-    mock_collection_object.find_one.assert_called_once_with({'google_id': 'google-id-123'})
+    mock_users_collection.find_one.assert_called_once_with({'google_id': 'google-id-123'})
     assert result == existing_user_doc
 
 def test_get_users_collection_success(mocker):
