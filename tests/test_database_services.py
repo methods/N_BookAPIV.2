@@ -3,9 +3,10 @@ from unittest.mock import MagicMock
 from database.mongo_helper import insert_book_to_mongo
 from database import user_services
 
-# @patch('mongo_helper.books_collection')
+
+
 def test_insert_book_to_mongo():
-    #Setup the mock
+    # Setup the mock
     mock_result = MagicMock()
     mock_result.inserted_id = '12345'
     mock_result.acknowledged = True
@@ -52,3 +53,35 @@ def test_get_or_create_user_with_existing_user(mocker):
     mock_get_collection.assert_called_once_with()
     mock_collection_object.find_one.assert_called_once_with({'google_id': 'google-id-123'})
     assert result == existing_user_doc
+
+def test_get_users_collection_success(mocker):
+    """
+    When get_users_collection is called, it should return the correct collection.
+    """
+    # Mock the app as it's imported in the function
+    mock_app = MagicMock()
+    mock_app.config = {
+        'MONGO_URI': 'mongodb://fake-host:27017/',
+        'DB_NAME': 'fake_db'
+    }
+    mocker.patch('app.app', mock_app)
+
+    # Mock MongoClient
+    mock_client_instance = MagicMock()
+    mock_mongo_client_class = mocker.patch('database.user_services.MongoClient')
+    mock_mongo_client_class.return_value = mock_client_instance
+
+    # Create a fake collection object that will be returned
+    expected_collection = MagicMock()
+    mock_client_instance.__getitem__.return_value = {'users': expected_collection}
+
+    # Act
+    actual_collection = user_services.get_users_collection()
+
+    # Assert
+    # Was MongoClient called with the correct fake URI
+    mock_mongo_client_class.assert_called_once_with(
+        'mongodb://fake-host:27017/',
+        serverSelectionTimeoutMS=5000
+    )
+    assert actual_collection == expected_collection
