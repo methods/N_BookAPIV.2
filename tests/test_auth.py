@@ -2,6 +2,7 @@
 from unittest.mock import MagicMock
 from bson.objectid import ObjectId
 from flask import redirect
+from auth.decorators import login_required
 import pytest
 import auth.services as auth_services
 from app import app
@@ -95,3 +96,26 @@ def test_oauth_authorize_service_function_successfully_authorizes_user(mocker):
     mock_authlib_call.assert_called_once()
     mock_user_service_call.assert_called_once_with(fake_google_profile)
     assert user == expected_user_document
+
+def test_login_required_decorator_redirects_anon_user(_client):
+    """
+    If an anonymous user (no session) attempts to access a protected route,
+    they should be redirected to the login page.
+    """
+
+    # Arrange
+    with app.test_request_context('/protected-route'):
+        # Define a fake view function that the decorator will wrap
+        @login_required
+        def fake_protected_view():
+            return "You should not see this!"
+
+        # Act
+        # Call the decorated function
+        response = fake_protected_view()
+
+    # Assert
+    # 1. Check for a 302 Redirect status code
+    assert response.status_code == 302
+    # 2. Check that the redirect location is the login page
+    assert response.location == 'http://localhost:5000/auth/login'
