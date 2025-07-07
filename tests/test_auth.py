@@ -1,7 +1,8 @@
 # pylint: disable=missing-docstring
+import os
 from unittest.mock import MagicMock
 from bson.objectid import ObjectId
-from flask import redirect
+from flask import redirect, g
 from auth.decorators import login_required
 import pytest
 import auth.services as auth_services
@@ -10,6 +11,7 @@ from app import app
 @pytest.fixture(name="_client")
 def client_fixture():
     app.config['TESTING'] = True
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
     auth_services.init_oauth(app)
     return app.test_client()
 
@@ -102,7 +104,6 @@ def test_login_required_decorator_redirects_anon_user(_client):
     If an anonymous user (no session) attempts to access a protected route,
     they should be redirected to the login page.
     """
-
     # Arrange
     with app.test_request_context('/protected-route'):
         # Define a fake view function that the decorator will wrap
@@ -119,3 +120,35 @@ def test_login_required_decorator_redirects_anon_user(_client):
     assert response.status_code == 302
     # 2. Check that the redirect location is the login page
     assert response.location == 'http://localhost:5000/auth/login'
+
+def test_login_required_decorator_allows_authenticated_user(mocker, _client):
+    """
+    If a user is logged in correctly, when they access a protected route,
+    user data should be loaded into flask.g.user and access allowed.
+    """
+    # Arrange
+    # Mock the database service to look up a user
+    mock_find_user = mocker.patch('database.user_services.get_or_create_user_from_oidc')
+    fake_user_id = ObjectId()
+    fake_user_doc = {'_id': fake_user_id, 'email': 'test@test.com', 'roles': ['viewer']}
+    mock_find_user.return_value = fake_user_doc
+
+
+    with _client.session_transaction() as sess:
+        sess['user_id'] = str(fake_user_id)
+
+    with app.test_request_context('/protected-route'):
+        # Define the decorated fake view
+        @login_required
+        def fake_protected_view():
+            # This view can now safely access g.user
+            return f"Welcome {g.user['email']}"
+
+        # Act
+        response = fake_protected_view()
+
+    # Assert
+    # 1. Was the database queried with the correct ID from the session?
+    mock_find_user.assert_called_once_with(str(fake_user_id))
+    # 2. Did the view execute successfully?
+    assert response == "Welcome test@test.com"
