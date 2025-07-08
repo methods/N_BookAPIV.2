@@ -2,7 +2,7 @@
 import os
 from unittest.mock import MagicMock
 from bson.objectid import ObjectId
-from flask import redirect, g
+from flask import redirect, g, session
 from auth.decorators import login_required
 import pytest
 import auth.services as auth_services
@@ -128,21 +128,19 @@ def test_login_required_decorator_allows_authenticated_user(mocker, _client):
     """
     # Arrange
     # Mock the database service to look up a user
-    mock_find_user = mocker.patch('database.user_services.find_user_by_id')
+    mock_find_user = mocker.patch('auth.decorators.user_services.find_user_by_id')
     fake_user_id = ObjectId()
     fake_user_doc = {'_id': fake_user_id, 'email': 'test@test.com', 'roles': ['viewer']}
     mock_find_user.return_value = fake_user_doc
 
-
-    with _client.session_transaction() as sess:
-        sess['user_id'] = str(fake_user_id)
-
     with app.test_request_context('/protected-route'):
+        # Manually set the session
+        session['user_id'] = str(fake_user_id)
         # Define the decorated fake view
         @login_required
         def fake_protected_view():
             # This view can now safely access g.user
-            return f"Welcome {g.user['email']}"
+            return g.user['email']
 
         # Act
         response = fake_protected_view()
@@ -151,4 +149,4 @@ def test_login_required_decorator_allows_authenticated_user(mocker, _client):
     # 1. Was the database queried with the correct ID from the session?
     mock_find_user.assert_called_once_with(str(fake_user_id))
     # 2. Did the view execute successfully?
-    assert response == "Welcome test@test.com"
+    assert response == 'test@test.com'

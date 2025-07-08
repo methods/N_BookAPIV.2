@@ -1,6 +1,6 @@
 """ Contains all the authorization decorators to control database access """
 from functools import wraps
-from flask import session, redirect
+from flask import session, redirect, g
 from database import user_services
 
 def login_required(f):
@@ -13,9 +13,16 @@ def login_required(f):
 
         # Load the user from the database
         user = user_services.find_user_by_id(user_id)
+        if user is None:
+            session.clear()
+            return redirect('http://localhost:5000/auth/login')
+
+        # Store the user object on 'g' for this request
+        g.user = user
+
         return f(*args, **kwargs)
     return decorated_function
 
 def roles_required(*required_roles):
     # To be implemented
-    pass
+    return
