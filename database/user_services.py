@@ -43,3 +43,10 @@ def get_or_create_user_from_oidc(profile):
         # Explicitly assign the ['_id'] field from the inserted_id
         new_user_doc['_id'] = result.inserted_id
         return new_user_doc
+
+def find_user_by_id(user_id):
+    """
+    Find a single user document by their mongoDB _id field.
+    """
+    users_collection = get_users_collection()
+    return

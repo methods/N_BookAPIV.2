@@ -128,7 +128,7 @@ def test_login_required_decorator_allows_authenticated_user(mocker, _client):
     """
     # Arrange
     # Mock the database service to look up a user
-    mock_find_user = mocker.patch('database.user_services.get_or_create_user_from_oidc')
+    mock_find_user = mocker.patch('database.user_services.find_user_by_id')
     fake_user_id = ObjectId()
     fake_user_doc = {'_id': fake_user_id, 'email': 'test@test.com', 'roles': ['viewer']}
     mock_find_user.return_value = fake_user_doc

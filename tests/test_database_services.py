@@ -6,8 +6,6 @@ from unittest.mock import MagicMock, call
 from database.mongo_helper import insert_book_to_mongo
 from database import user_services
 
-
-
 def test_insert_book_to_mongo():
     # Setup the mock
     mock_result = MagicMock()
@@ -158,3 +156,30 @@ def test_get_or_create_user_with_new_user(mocker):
     assert returned_user['google_id'] == 'google-id-new-user'
     assert returned_user['_id'] == fake_new_id
     assert returned_user['roles'] == ['viewer']
+
+def test_find_user_by_id(mocker):
+    """
+    Given a user_id, when find_user_by_id is called, it should return the correct document.
+    """
+    # Arrange
+    # Mock the database connection
+    mock_get_collection = mocker.patch('database.user_services.get_users_collection')
+    mock_users_collection = MagicMock()
+    mock_get_collection.return_value = mock_users_collection
+
+    test_id = ObjectId()
+    expected_user_doc = {'_id': test_id, 'email': 'test@test.com'}
+
+    # Tell the mocked collection to return the user document when queried
+    mock_users_collection.find_one.return_value = expected_user_doc
+
+    # Act
+    result = user_services.find_user_by_id(str(test_id))
+
+    # Assert
+    # 1. Was find_one called with the correct query?
+    # The string ID must be converted to an ObjectID as this is the shape mongoDB expects
+    mock_users_collection.find_one.assert_called_once_with({'_id': test_id})
+
+    # 2. Did the function return the correct document?
+    assert result == expected_user_doc
