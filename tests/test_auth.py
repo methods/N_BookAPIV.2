@@ -168,3 +168,23 @@ def test_roles_required_denies_user_without_correct_role(_client):
         # Act and Assert
         with pytest.raises(Forbidden):
             fake_admin_view()
+
+def test_roles_required_allows_user_with_role(_client):
+    """
+    GIVEN a user with the required role is logged in
+    WHEN they access a route protected by @roles_required
+    THEN the view should execute.
+    """
+    with app.test_request_context('/admin-route'):
+        # Arrange
+        g.user = {'roles': ['viewer', 'admin']}
+
+        @roles_required('admin')
+        def fake_admin_view():
+            return "Admin Access Granted"
+
+        # Act
+        response = fake_admin_view()
+
+        # Assert
+        assert response == "Admin Access Granted"

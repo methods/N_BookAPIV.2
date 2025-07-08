@@ -1,6 +1,6 @@
 """ Contains all the authorization decorators to control database access """
 from functools import wraps
-from flask import session, redirect, g
+from flask import session, redirect, g, abort
 from database import user_services
 
 def login_required(f):
@@ -32,6 +32,7 @@ def roles_required(*required_roles):
         @wraps(f)
         def decorated_function(*args, **kwargs):
             # For now, we'll just have it pass through to the original function.
+            abort(403)
             # This is enough to stop the TypeError.
             return f(*args, **kwargs)
         return decorated_function
