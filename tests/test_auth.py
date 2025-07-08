@@ -3,10 +3,11 @@ import os
 from unittest.mock import MagicMock
 from bson.objectid import ObjectId
 from flask import redirect, g, session
-from auth.decorators import login_required
+from auth.decorators import login_required, roles_required
 import pytest
 import auth.services as auth_services
 from app import app
+from werkzeug.exceptions import Forbidden
 
 @pytest.fixture(name="_client")
 def client_fixture():
@@ -150,3 +151,20 @@ def test_login_required_decorator_allows_authenticated_user(mocker, _client):
     mock_find_user.assert_called_once_with(str(fake_user_id))
     # 2. Did the view execute successfully?
     assert response == 'test@test.com'
+
+def test_roles_required_denies_user_without_correct_role(_client):
+    """
+    If a user is logged in correctly, when they access a protected route
+    but do not have the required role, a 403 Forbidden exception should be raised.
+    """
+    # Arrange
+    with app.test_request_context('/admin-route'):
+        g.user = {'roles': ['viewer']}
+
+        @roles_required('admin')
+        def fake_admin_view():
+            return "You should not see this"
+
+        # Act and Assert
+        with pytest.raises(Forbidden):
+            fake_admin_view()
