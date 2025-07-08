@@ -1,6 +1,7 @@
 """ Contains all mongoDB user service functions """
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
+from bson.objectid import ObjectId, InvalidId
 from datetime import datetime, timezone
 
 def get_users_collection():
@@ -49,4 +50,13 @@ def find_user_by_id(user_id):
     Find a single user document by their mongoDB _id field.
     """
     users_collection = get_users_collection()
-    return
+
+    try:
+        # Convert the string ID from the session back to a BSON ObjectId
+        obj_id = ObjectId(user_id)
+
+        # Query the database
+        return users_collection.find_one({'_id': obj_id})
+    except InvalidId:
+        # Handle cases where the session contains a malformed ID string
+        return None
