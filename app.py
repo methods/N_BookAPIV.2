@@ -11,6 +11,7 @@ from pymongo.errors import ConnectionFailure
 from database.mongo_helper import insert_book_to_mongo
 from auth.services import init_oauth
 from auth.views import auth_bp # Imports the blueprint object from the auth module
+from auth.decorators import login_required, roles_required
 from data import books
 
 app = Flask(__name__)
@@ -52,6 +53,8 @@ def append_hostname(book, host):
 
 # ----------- POST section ------------------
 @app.route("/books", methods=["POST"])
+@login_required
+@roles_required('admin', 'editor')
 def add_book():
     """Function to add a new book to the collection."""
     # check if request is json
@@ -182,6 +185,8 @@ def get_book(book_id):
 
 # ----------- DELETE section ------------------
 @app.route("/books/<string:book_id>", methods=["DELETE"])
+@login_required
+@roles_required('admin')
 def delete_book(book_id):
     """
     Soft delete a book by setting its state to 'deleted' or return error if not found.
@@ -198,6 +203,8 @@ def delete_book(book_id):
 # ----------- PUT section ------------------
 
 @app.route("/books/<string:book_id>", methods=["PUT"])
+@login_required
+@roles_required('admin', 'editor')
 def update_book(book_id):
     """
     Update a book by its unique ID using JSON from the request body.
