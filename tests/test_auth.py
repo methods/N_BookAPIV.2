@@ -152,6 +152,40 @@ def test_login_required_decorator_allows_authenticated_user(mocker, _client):
     # 2. Did the view execute successfully?
     assert response == 'test@test.com'
 
+def test_login_required_with_invalid_user_id_clears_session_and_redirects(mocker, _client):
+    """
+    If a user has an invalid user_id, when they access a protected route,
+    session should be cleared + they should be redirected to the login page.
+    """
+    # Arrange
+    # Mock the database service to fail the user lookup
+    mock_find_user = mocker.patch('auth.decorators.user_services.find_user_by_id')
+    mock_find_user.return_value = None
+    # Mock invalid user_id to be passed
+    invalid_user_id = str(ObjectId())
+
+    with app.test_request_context('/protected-route'):
+        # Manually set the session
+        session['user_id'] = str(invalid_user_id)
+        # Define the decorated fake view
+        @login_required
+        def fake_protected_view():
+            return "This should never be returned."
+
+        # Act
+        response = fake_protected_view()
+
+        # Assert
+        # 1. Was the database queried with the correct ID from the session?
+        mock_find_user.assert_called_once_with(str(invalid_user_id))
+
+        # 2. Was the user redirected appropriately?
+        assert response.status_code == 302
+        assert 'http://localhost:5000/auth/login' in response.location
+
+        # 3. After the redirect, the session should be empty.
+        assert 'user_id' not in session
+
 def test_roles_required_denies_user_without_correct_role(_client):
     """
     If a user is logged in correctly, when they access a protected route

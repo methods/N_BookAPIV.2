@@ -19,7 +19,6 @@ def login_required(f):
 
         # Store the user object on 'g' for this request
         g.user = user
-
         return f(*args, **kwargs)
     return decorated_function
 
