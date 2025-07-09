@@ -1,10 +1,12 @@
 # pylint: disable=missing-docstring
 # from unittest.mock import MagicMock
 import os
+import logging
 from flask import redirect, session
 from bson.objectid import ObjectId # This is imported so we can create a mongoDB-like ObjectId
 import pytest
 import auth.services as auth_services
+from authlib.integrations.base_client import OAuthError
 from app import app
 
 @pytest.fixture(name="client")
@@ -66,3 +68,63 @@ def test_auth_callback_route_redirects_correctly_on_successful_login(mocker, cli
 
     assert response.status_code == 302
     assert response.location == expected_redirect_uri
+
+
+def test_callback_view_handles_service_returning_none(mocker, client, caplog):
+    """
+    GIVEN the authorize service returns None (e.g., DB issue)
+    WHEN the /auth/callback route is hit
+    THEN it should log a warning and redirect to the home/failure page.
+    """
+    # Arrange
+    # Mock the service function to simulate the failure by returning None.
+    mock_service_authorize = mocker.patch('auth.services.oauth_authorize')
+    mock_service_authorize.return_value = None
+
+    # Use the 'caplog' fixture to capture log messages.
+    #    This allows us to assert that the correct warning was logged.
+    caplog.set_level(logging.WARNING)
+
+    # Act
+    response = client.get('/auth/callback')
+
+    # Assert
+    # 1. Was the service function called?
+    mock_service_authorize.assert_called_once()
+
+    # 2. Was the user redirected to the correct failure page?
+    assert response.status_code == 302
+    assert response.location == 'http://localhost:5000/'
+
+    # 3. Was the correct warning message logged?
+    assert "Authorization failed: user service did not return a user." in caplog.text
+
+
+def test_callback_view_handles_oauth_error(mocker, client, caplog):
+    """
+    GIVEN the authorize service raises an OAuthError (e.g., user denied access)
+    WHEN the /auth/callback route is hit
+    THEN it should log an error and redirect to the home/failure page.
+    """
+    # Arrange
+    # Mock the service function to simulate failure by raising an exception.
+    mock_service_authorize = mocker.patch('auth.services.oauth_authorize')
+    mock_service_authorize.side_effect = OAuthError(description="User denied the request.")
+
+    # Capture the log
+    caplog.set_level(logging.ERROR)
+
+    # Act
+    response = client.get('/auth/callback')
+
+    # Assert
+    # 1. Was the service function called?
+    mock_service_authorize.assert_called_once()
+
+    # 2. Was the user redirected?
+    assert response.status_code == 302
+    assert response.location == 'http://localhost:5000/'
+
+    # 3. Was the correct error message logged?
+    assert "OAuth error during callback" in caplog.text
+    assert "User denied the request." in caplog.text
