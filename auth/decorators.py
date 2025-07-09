@@ -31,9 +31,12 @@ def roles_required(*required_roles):
     def decorator(f): # This is the actual decorator that wraps the view
         @wraps(f)
         def decorated_function(*args, **kwargs):
-            # For now, we'll just have it pass through to the original function.
-            abort(403)
-            # This is enough to stop the TypeError.
+            # Get the user's roles from the session
+            user_roles = set(g.user.get('roles', []))
+
+            # Check that the user has at least one of the roles required
+            if not user_roles.intersection(required_roles):
+                abort(403) # Forbids access if they don't
             return f(*args, **kwargs)
         return decorated_function
     return decorator # The outer function must return the decorator
