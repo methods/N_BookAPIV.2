@@ -6,6 +6,7 @@ and logout.
 import logging
 from flask import Blueprint, redirect, session
 from authlib.integrations.base_client import OAuthError
+from auth.decorators import login_required
 from . import services
 
 auth_bp = Blueprint('auth', __name__)
@@ -39,3 +40,10 @@ def callback():
         # This case handles if Authlib throws an error (e.g., user clicked "deny")
         logging.error("OAuth error during callback: %s", e.description)
         return redirect('http://localhost:5000/')
+
+@auth_bp.route('/logout')
+@login_required
+def logout():
+    """Logs the current user out by clearing the session."""
+    session.clear()
+    return redirect('http://localhost:5000/')

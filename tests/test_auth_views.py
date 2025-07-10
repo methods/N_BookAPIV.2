@@ -16,6 +16,30 @@ def client_fixture():
     auth_services.init_oauth(app)
     return app.test_client()
 
+# This client fixture is logged in as a fake admin user
+@pytest.fixture(name="admin_client")
+def admin_client_fixture(client, mocker):
+    # Create the fake admin user object
+    fake_admin_id = ObjectId()
+    fake_admin_doc = {
+        '_id': fake_admin_id,
+        'email': 'admin@test.com',
+        'roles': ['admin', 'viewer']
+    }
+
+    # Mock the function that the @login_required decorator calls
+    mocker.patch(
+        'auth.decorators.user_services.find_user_by_id',
+        return_value=fake_admin_doc
+    )
+
+    # Use the client's session_transaction to set the cookie
+    with client.session_transaction() as sess:
+        sess['user_id'] = str(fake_admin_id)
+
+    # The 'client' object that was passed in now has the session cookie.
+    yield client
+
 def test_auth_login_route_redirects_correctly(mocker, client):
     """ When the /auth/login route is called,
     it should call the oauth_login service function
@@ -128,3 +152,28 @@ def test_callback_view_handles_oauth_error(mocker, client, caplog):
     # 3. Was the correct error message logged?
     assert "OAuth error during callback" in caplog.text
     assert "User denied the request." in caplog.text
+
+def test_logout_route_clears_session_and_redirects(admin_client):
+    """
+        If an authenticated user makes a GET request to the /auth/logout route
+        then their session should be cleared and they should be redirected.
+        """
+    # Arrange
+    # The 'admin_client' fixture has already logged the user in by setting
+    # a session cookie on the client. We can verify this as a pre-condition.
+    with admin_client.session_transaction() as sess:
+        assert 'user_id' in sess
+
+    # Act
+    # Make a GET request to the logout endpoint using the authenticated client.
+    response = admin_client.get('/auth/logout')
+
+    # Assert
+    # 1. Assert that the user was redirected (e.g., to the homepage).
+    assert response.status_code == 302
+    assert response.location == 'http://localhost:5000/'
+
+    # 2. Check if the session is now empty
+    with admin_client.session_transaction() as sess:
+        assert 'user_id' not in sess
+        assert not sess
