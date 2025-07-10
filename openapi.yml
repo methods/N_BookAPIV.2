@@ -113,6 +113,16 @@ components:
           description: A message describing the error.
       required:
         - error
+  # Information about the security of the API
+  securitySchemes:
+    cookieAuth:
+      type: cookie
+      in: cookie
+      name: session # The name of the session cookie
+      description: >
+        Session cookie obtained after a successful login via the `/auth/login` 
+        browser-based flow. This cookie must be included in all subsequent
+        requests to protected endpoints.
 # --------------------------------------------
 # Paths
 paths:
@@ -123,22 +133,43 @@ paths:
       tags:
         - Books
       summary: Add a new book
-      description: Adds a new book to the collection. The server will generate a unique ID and HATEOAS links for the new book.
-      operationId: addBook 
+      description: >
+        Adds a new book to the collection. Requires 'admin' or 'editor' role. 
+        The server will generate a unique ID and HATEOAS links for the new book.
+      operationId: addBook
+      # Security information
+      security:
+        - cookieAuth: []
       requestBody:
         description: Book object that needs to be added to the store.
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/BookInput' 
+              $ref: '#/components/schemas/BookInput'
       responses:
-        '201': 
+        '201':
           description: Book created successfully.
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/BookOutput' 
+                $ref: '#/components/schemas/BookOutput'
+        '401':
+          description: Unauthorized - The user is not logged in.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized"
+        '403':
+          description: Forbidden - The user is logged in but lacks the required 'admin' or 'editor' role.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Forbidden"
         '400': 
           description: Invalid input provided or missing fields.
           content:
@@ -265,6 +296,9 @@ paths:
       summary: Update a book
       description: Updates an existing book by its unique ID. The entire book object must be provided in the request body.
       operationId: updateBook
+      # Security information
+      security:
+        - cookieAuth: [ ]
       parameters:
         - name: book_id
           in: path
@@ -303,6 +337,22 @@ paths:
                   summary: Example of payload not being a dictionary
                   value:
                     error: "JSON payload must be a dictionary"
+        '401':
+          description: Unauthorized - The user is not logged in.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized"
+        '403':
+          description: Forbidden - The user is logged in but lacks the required 'admin' or 'editor' role.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Forbidden"
         '404':
           description: Book not found. The requested book ID does not exist.
           content:
@@ -335,6 +385,9 @@ paths:
       summary: Delete a book by ID
       description: Soft deletes a book by setting its state to 'deleted'.
       operationId: deleteBookById
+      # Security information
+      security:
+        - cookieAuth: [ ]
       parameters:
         - name: book_id
           in: path
@@ -347,6 +400,22 @@ paths:
       responses:
         '204':
           description: Book deleted successfully.
+        '401':
+          description: Unauthorized - The user is not logged in.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized"
+        '403':
+          description: Forbidden - The user is logged in but lacks the required 'admin' role.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Forbidden"
         '404':
           description: Book not found. The requested book ID does not exist.
           content:
@@ -363,3 +432,69 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: "An unexpected error occurred."
+# --------------------------------------------
+  /auth/login:
+    get:
+      tags:
+        - Authentication
+      summary: Initiate Login Flow (Browser Only)
+      description: >
+        This endpoint is the starting point for user authentication. 
+        It is intended to be used in a web browser. Accessing this URL will
+        redirect the user to the Google OAuth 2.0 consent screen. It does not
+        return JSON.
+      responses:
+        '302':
+          description: >
+            Redirect to the Google authentication page. The `Location` header
+            will contain the URL for the Google consent screen.
+
+  /auth/callback:
+    get:
+      tags:
+        - Authentication
+      summary: OAuth Callback Endpoint (Browser Only)
+      description: >
+        This endpoint should not be called directly. It is the target for the
+        redirect from Google after a user grants consent. The server handles
+        the token exchange, creates a user session, and sets a `session` cookie.
+      parameters:
+        - name: code
+          in: query
+          required: true
+          description: The one-time authorization code from Google.
+          schema:
+            type: string
+        - name: state
+          in: query
+          required: true
+          description: A security token to prevent CSRF attacks.
+          schema:
+            type: string
+      responses:
+        '302':
+          description: >
+            Successful authentication. The user is redirected to the main
+            application dashboard (e.g., `/books`). The response includes a
+            `Set-Cookie` header with the user's session.
+        '401':
+          description: Authentication failed (e.g., user denied access).
+
+  /auth/logout:
+    get:
+      tags:
+        - Authentication
+      summary: Log Out User (Browser Only)
+      description: >
+        Logs the current user out by clearing their session. This endpoint
+        requires an active session cookie to be present.
+      security:
+        - cookieAuth: [] # This endpoint is protected
+      responses:
+        '302':
+          description: >
+            Successful logout. The user is redirected to the application's
+            homepage. The response includes a `Set-Cookie` header that
+            clears the session cookie.
+        '401':
+          description: Unauthorized. User was not logged in.

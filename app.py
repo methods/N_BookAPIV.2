@@ -1,4 +1,5 @@
 """Flask application module for managing a collection of books."""
+# pylint: disable=cyclic-import
 import uuid
 import copy
 import os
@@ -8,7 +9,10 @@ from flask import Flask, request, jsonify
 from werkzeug.exceptions import NotFound
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
-from mongo_helper import insert_book_to_mongo
+from database.mongo_helper import insert_book_to_mongo
+from auth.services import init_oauth
+from auth.views import auth_bp # Imports the blueprint object from the auth module
+from auth.decorators import login_required, roles_required
 from data import books
 
 app = Flask(__name__)
@@ -18,6 +22,12 @@ load_dotenv()
 app.config['MONGO_URI'] = os.getenv('MONGO_CONNECTION')
 app.config['DB_NAME'] = os.getenv('PROJECT_DATABASE')
 app.config['COLLECTION_NAME'] = os.getenv('PROJECT_COLLECTION')
+app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+
+# Call the function to initialise the OAuth Client
+init_oauth(app)
+# Register the auth blueprint with the main app, applying a URL prefix
+app.register_blueprint(auth_bp, url_prefix='/auth')
 
 def get_book_collection():
     """Initialize the mongoDB connection"""
@@ -44,6 +54,8 @@ def append_hostname(book, host):
 
 # ----------- POST section ------------------
 @app.route("/books", methods=["POST"])
+@login_required
+@roles_required('admin', 'editor')
 def add_book():
     """Function to add a new book to the collection."""
     # check if request is json
@@ -174,6 +186,8 @@ def get_book(book_id):
 
 # ----------- DELETE section ------------------
 @app.route("/books/<string:book_id>", methods=["DELETE"])
+@login_required
+@roles_required('admin')
 def delete_book(book_id):
     """
     Soft delete a book by setting its state to 'deleted' or return error if not found.
@@ -190,6 +204,8 @@ def delete_book(book_id):
 # ----------- PUT section ------------------
 
 @app.route("/books/<string:book_id>", methods=["PUT"])
+@login_required
+@roles_required('admin', 'editor')
 def update_book(book_id):
     """
     Update a book by its unique ID using JSON from the request body.

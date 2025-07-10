@@ -1,15 +1,43 @@
 # pylint: disable=missing-docstring
+import os
 from unittest.mock import patch
+from bson.objectid import ObjectId
 from pymongo.errors import ServerSelectionTimeoutError
 import pytest
 from app import app, get_book_collection
 
 # Option 1: Rename the fixture to something unique (which I've used)
 # Option 2: Use a linter plugin that understands pytest
+# pylint: disable=R0801
 @pytest.fixture(name="client")
 def client_fixture():
     app.config['TESTING'] = True
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', "a-secure-key-for-testing-only")
     return app.test_client()
+
+# This client fixture is logged in as a fake admin user
+@pytest.fixture(name="admin_client")
+def admin_client_fixture(client, mocker):
+    # Create the fake admin user object
+    fake_admin_id = ObjectId()
+    fake_admin_doc = {
+        '_id': fake_admin_id,
+        'email': 'admin@test.com',
+        'roles': ['admin', 'viewer']
+    }
+
+    # Mock the function that the @login_required decorator calls
+    mocker.patch(
+        'auth.decorators.user_services.find_user_by_id',
+        return_value=fake_admin_doc
+    )
+
+    # Use the client's session_transaction to set the cookie
+    with client.session_transaction() as sess:
+        sess['user_id'] = str(fake_admin_id)
+
+    # The 'client' object that was passed in now has the session cookie.
+    yield client
 
 # Create a stub to mock the insert_book_to_mongo function to avoid inserting to real DB
 @pytest.fixture(name="_insert_book_to_db")
@@ -61,7 +89,7 @@ books_database = [
 
 # ------------------- Tests for POST ---------------------------------------------
 
-def test_add_book_creates_new_book(client, _insert_book_to_db):
+def test_add_book_creates_new_book(admin_client, _insert_book_to_db):
 
     test_book = {
         "title": "Test Book",
@@ -69,7 +97,7 @@ def test_add_book_creates_new_book(client, _insert_book_to_db):
         "synopsis": "Test Synopsis"
     }
 
-    response = client.post("/books", json = test_book)
+    response = admin_client.post("/books", json = test_book)
 
     assert response.status_code == 201
     assert response.headers["content-type"] == "application/json"
@@ -80,12 +108,12 @@ def test_add_book_creates_new_book(client, _insert_book_to_db):
     for field in required_fields:
         assert field in response_data, f"{field} not in response_data"
 
-def test_add_book_sent_with_missing_required_fields(client):
+def test_add_book_sent_with_missing_required_fields(admin_client):
     test_book = {
         "author": "AN Other"
         # missing 'title' and 'synopsis'
     }
-    response = client.post("/books", json = test_book)
+    response = admin_client.post("/books", json = test_book)
 
     assert response.status_code == 400
     response_data = response.get_json()
@@ -93,31 +121,31 @@ def test_add_book_sent_with_missing_required_fields(client):
     assert "Missing required fields: title, synopsis" in response.get_json()["error"]
 
 
-def test_add_book_sent_with_wrong_types(client):
+def test_add_book_sent_with_wrong_types(admin_client):
     test_book = {
         "title": 1234567,
         "author": "AN Other",
         "synopsis": "Test Synopsis"
     }
 
-    response = client.post("/books", json = test_book)
+    response = admin_client.post("/books", json = test_book)
 
     assert response.status_code == 400
     response_data = response.get_json()
     assert 'error' in response_data
     assert "Field title is not of type <class 'str'>" in response.get_json()["error"]
 
-def test_add_book_with_invalid_json_content(client):
+def test_add_book_with_invalid_json_content(admin_client):
 
     # This should trigger a TypeError
-    response = client.post("/books", json ="This is not a JSON object")
+    response = admin_client.post("/books", json ="This is not a JSON object")
 
     assert response.status_code == 400
     assert "JSON payload must be a dictionary" in response.get_json()["error"]
 
-def test_add_book_check_request_header_is_json(client):
+def test_add_book_check_request_header_is_json(admin_client):
 
-    response = client.post(
+    response = admin_client.post(
         "/books",
         data ="This is not a JSON object",
         headers = {"content-type": "text/plain"}
@@ -126,7 +154,7 @@ def test_add_book_check_request_header_is_json(client):
     assert response.status_code == 415
     assert "Request must be JSON" in response.get_json()["error"]
 
-def test_500_response_is_json(client):
+def test_500_response_is_json(admin_client):
     test_book = {
         "title": "Valid Title",
         "author": "AN Other",
@@ -135,7 +163,7 @@ def test_500_response_is_json(client):
 
     # Use patch to mock uuid module failing and throwing an exception
     with patch("uuid.uuid4", side_effect=Exception("An unexpected error occurred")):
-        response = client.post("/books", json = test_book)
+        response = admin_client.post("/books", json = test_book)
 
         # Check the response code is 500
         assert response.status_code == 500
@@ -283,39 +311,38 @@ def test_get_book_returns_404_if_state_equals_deleted(client):
 
 # ------------------------ Tests for DELETE --------------------------------------------
 
-def test_book_is_soft_deleted_on_delete_request(client):
+def test_book_is_soft_deleted_on_delete_request(admin_client):
     with patch("app.books", books_database):
         # Send DELETE request
         book_id = '1'
-        response = client.delete(f"/books/{book_id}")
+        response = admin_client.delete(f"/books/{book_id}")
 
         assert response.status_code == 204
         assert response.data == b''
         # check that the book's state has changed to deleted
         assert books_database[0]['state'] == 'deleted'
 
-def test_delete_empty_book_id(client):
-    book_id =""
+def test_delete_book_as_anon_user_is_blocked(client):
+    book_id ="1234567"
     response = client.delete(f"/books/{book_id}")
-    assert response.status_code == 404
-    assert response.content_type == "application/json"
-    assert "404 Not Found" in response.get_json()["error"]
+    assert response.status_code == 302
+    assert 'http://localhost:5000/auth/login' in response.location
 
-def test_delete_invalid_book_id(client):
-    response = client.delete("/books/12341234")
+def test_delete_invalid_book_id(admin_client):
+    response = admin_client.delete("/books/12341234")
     assert response.status_code == 404
     assert response.content_type == "application/json"
     assert "Book not found" in response.get_json()["error"]
 
-def test_book_database_is_initialized_for_delete_book_route(client):
+def test_book_database_is_initialized_for_delete_book_route(admin_client):
     with patch("app.books", None):
-        response = client.delete("/books/1")
+        response = admin_client.delete("/books/1")
         assert response.status_code == 500
         assert "Book collection not initialized" in response.get_json()["error"]
 
 # ------------------------ Tests for PUT --------------------------------------------
 
-def test_update_book_request_returns_correct_status_and_content_type(client):
+def test_update_book_request_returns_correct_status_and_content_type(admin_client):
     with patch("app.books", books_database):
 
         test_book = {
@@ -325,13 +352,13 @@ def test_update_book_request_returns_correct_status_and_content_type(client):
         }
 
         # send PUT request
-        response = client.put("/books/1", json=test_book)
+        response = admin_client.put("/books/1", json=test_book)
 
         # Check response status code and content type
         assert response.status_code == 200
         assert response.content_type == "application/json"
 
-def test_update_book_request_returns_required_fields(client):
+def test_update_book_request_returns_required_fields(admin_client):
     with patch("app.books", books_database):
         test_book = {
             "title": "Test Book",
@@ -340,7 +367,7 @@ def test_update_book_request_returns_required_fields(client):
         }
 
         # Send PUT request
-        response = client.put("/books/1", json=test_book)
+        response = admin_client.put("/books/1", json=test_book)
         response_data = response.get_json()
 
         # Check that required fields are in the response data
@@ -348,7 +375,7 @@ def test_update_book_request_returns_required_fields(client):
         for field in required_fields:
             assert field in response_data, f"{field} not in response_data"
 
-def test_update_book_replaces_whole_object(client):
+def test_update_book_replaces_whole_object(admin_client):
     book_to_be_changed = {
         "id": "1",
         "title": "Original Title",
@@ -368,7 +395,7 @@ def test_update_book_replaces_whole_object(client):
             "synopsis": "Updated Synopsis"
         }
 
-        response = client.put("/books/1", json=updated_data)
+        response = admin_client.put("/books/1", json=updated_data)
         assert response.status_code == 200
 
         data = response.get_json()
@@ -382,18 +409,18 @@ def test_update_book_replaces_whole_object(client):
         assert data["author"] == "Updated Author"
         assert data["synopsis"] == "Updated Synopsis"
 
-def test_update_book_sent_with_invalid_book_id(client):
+def test_update_book_sent_with_invalid_book_id(admin_client):
     with patch("app.books", books_database):
         test_book = {
             "title": "Some title",
             "author": "Some author",
             "synopsis": "Some synopsis"
         }
-        response = client.put("/books/999", json =test_book)
+        response = admin_client.put("/books/999", json =test_book)
         assert response.status_code == 404
         assert "Book not found" in response.get_json()["error"]
 
-def test_book_database_is_initialized_for_update_book_route(client):
+def test_book_database_is_initialized_for_update_book_route(admin_client):
     with patch("app.books", None):
         test_book = {
             "title": "Test Book",
@@ -402,13 +429,13 @@ def test_book_database_is_initialized_for_update_book_route(client):
         }
 
         # Send PUT request
-        response = client.put("/books/1", json=test_book)
+        response = admin_client.put("/books/1", json=test_book)
         assert response.status_code == 500
         assert "Book collection not initialized" in response.get_json()["error"]
 
-def test_update_book_check_request_header_is_json(client):
+def test_update_book_check_request_header_is_json(admin_client):
 
-    response = client.put(
+    response = admin_client.put(
         "/books/1",
         data ="This is not a JSON object",
         headers = {"content-type": "text/plain"}
@@ -417,20 +444,20 @@ def test_update_book_check_request_header_is_json(client):
     assert response.status_code == 415
     assert "Request must be JSON" in response.get_json()["error"]
 
-def test_update_book_with_invalid_json_content(client):
+def test_update_book_with_invalid_json_content(admin_client):
 
     # This should trigger a TypeError
-    response = client.put("/books/1", json ="This is not a JSON object")
+    response = admin_client.put("/books/1", json ="This is not a JSON object")
 
     assert response.status_code == 400
     assert "JSON payload must be a dictionary" in response.get_json()["error"]
 
-def test_update_book_sent_with_missing_required_fields(client):
+def test_update_book_sent_with_missing_required_fields(admin_client):
     test_book = {
         "author": "AN Other"
         # missing 'title' and 'synopsis'
     }
-    response = client.put("/books/1", json = test_book)
+    response = admin_client.put("/books/1", json = test_book)
 
     assert response.status_code == 400
     response_data = response.get_json()
@@ -439,7 +466,7 @@ def test_update_book_sent_with_missing_required_fields(client):
 
 # ------------------------ Tests for HELPER FUNCTIONS -------------------------------------
 
-def test_append_host_to_links_in_post(client, _insert_book_to_db):
+def test_append_host_to_links_in_post(admin_client, _insert_book_to_db):
     # 1. Make a POST request
     test_book = {
         "title": "Append Test Book",
@@ -447,7 +474,7 @@ def test_append_host_to_links_in_post(client, _insert_book_to_db):
         "synopsis": "Test Synopsis"
     }
 
-    response = client.post("/books", json = test_book)
+    response = admin_client.post("/books", json = test_book)
 
     assert response.status_code == 201
     assert response.headers["content-type"] == "application/json"
@@ -519,14 +546,14 @@ def test_append_host_to_links_in_get_book(client):
     assert self_link.endswith(expected_path), \
         f"Link should end with the resource path '{expected_path}'"
 
-def test_append_host_to_links_in_put(client):
+def test_append_host_to_links_in_put(admin_client):
 
     test_book = {
         "title": "Test Book",
         "author": "AN Other",
         "synopsis": "Test Synopsis"
     }
-    response = client.put("/books/1", json = test_book)
+    response = admin_client.put("/books/1", json = test_book)
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/json"

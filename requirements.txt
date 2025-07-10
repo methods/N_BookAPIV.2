@@ -4,3 +4,7 @@ pylint
 coverage
 pymongo
 python-dotenv
+Authlib
+requests
+pytest-mock
+datetime
