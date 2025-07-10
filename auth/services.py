@@ -12,6 +12,11 @@ GOOGLE_CLIENT_ID = os.getenv('GOOGLE_CLIENT_ID')
 GOOGLE_CLIENT_SECRET = os.getenv('GOOGLE_CLIENT_SECRET')
 APP_SECRET_KEY = os.getenv('SECRET_KEY')
 
+# Custom exception for this module
+class AuthServiceError(Exception):
+    """Custom exception for authentication service failures."""
+    pass
+
 
 def init_oauth(app):
     """Initialize the OAuth client, attach it to the Flask app"""
@@ -40,7 +45,7 @@ def oauth_authorize():
     # Authlib handles parsing of the token, get the 'userinfo' dictionary from it
     profile = token.get('userinfo')
     if not profile:
-        raise Exception("Could not retrieve user profile from OAuth token.")
+        raise AuthServiceError("Could not retrieve user profile from OAuth token.")
 
     # Call the mongoDB get or create user function passing the userinfo dictionary
     user_document = user_services.get_or_create_user_from_oidc(profile)

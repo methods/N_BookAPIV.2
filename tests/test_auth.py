@@ -6,6 +6,7 @@ from flask import redirect, g, session
 from auth.decorators import login_required, roles_required
 import pytest
 import auth.services as auth_services
+from auth.services import AuthServiceError
 from app import app
 from werkzeug.exceptions import Forbidden
 
@@ -99,6 +100,25 @@ def test_oauth_authorize_service_function_successfully_authorizes_user(mocker):
     mock_authlib_call.assert_called_once()
     mock_user_service_call.assert_called_once_with(fake_google_profile)
     assert user == expected_user_document
+
+
+def test_oauth_authorize_raises_error_if_no_profile_in_token(mocker):
+    """
+    If Authlib returns a token with no 'userinfo'
+    when oauth_authorize is called, it should raise a custom AuthServiceError.
+    """
+    # Arrange
+    # 1. Mock the Authlib call.
+    mock_authlib_call = mocker.patch('auth.services.oauth.google.authorize_access_token')
+
+    # 2. Configure the mock to return a dictionary that is MISSING the 'userinfo' key.
+    #    This simulates the exact failure condition we want to test.
+    mock_authlib_call.return_value = {'access_token': 'some_token', 'other_stuff': '...'}
+
+    # Act & ASSERT
+    # Use pytest.raises to assert that our specific exception is raised.
+    with pytest.raises(AuthServiceError, match="Could not retrieve user profile"):
+        auth_services.oauth_authorize()
 
 def test_login_required_decorator_redirects_anon_user(_client):
     """
