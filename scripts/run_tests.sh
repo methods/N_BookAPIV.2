@@ -2,15 +2,17 @@
 # Run pytest with coverage
 echo "Running tests with coverage..."
 coverage run -m pytest tests/test_app.py tests/test_database_services.py tests/test_integration.py tests/test_auth.py tests/test_auth_views.py
+# Specify folders to omitted from coverage check
+OMIT_PATTERN="tests/*,venv/*"
 # Check if the tests passed
 if [ $? -eq 0 ]; then
     echo "✅ Tests passed."
     # Generate terminal coverage report
     echo "Generating coverage report..."
-    coverage report -m
+    coverage report -m --omit="$OMIT_PATTERN"
     # Enforce 100% coverage
     echo "Checking for 100% coverage..."
-    coverage report --fail-under=100 -m
+    coverage report --fail-under=100 -m --omit="$OMIT_PATTERN"
     if [ $? -ne 0 ]; then
         echo "❌ Coverage is below 100%. Please improve test coverage."
         coverage html
