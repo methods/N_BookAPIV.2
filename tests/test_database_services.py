@@ -183,3 +183,18 @@ def test_find_user_by_id(mocker):
 
     # 2. Did the function return the correct document?
     assert result == expected_user_doc
+
+def test_find_user_by_id_with_invalid_id_string():
+    """
+    If find_user_by_id is called with an invalid id, it should
+    catch the InvalidID exception and return None.
+    """
+    # Arrange
+    # A string that is not a valid 24-character hex string
+    invalid_id_string = "not-a-valid-mongo-id"
+
+    # Act
+    result = user_services.find_user_by_id(invalid_id_string)
+
+    # Assert
+    assert result is None
