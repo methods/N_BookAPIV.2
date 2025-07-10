@@ -2,13 +2,13 @@
 import os
 from unittest.mock import MagicMock
 from bson.objectid import ObjectId
-from flask import redirect, g, session
-from auth.decorators import login_required, roles_required
+from flask import redirect, g, session, jsonify
 import pytest
+from werkzeug.exceptions import Forbidden
+from auth.decorators import login_required, roles_required
 import auth.services as auth_services
 from auth.services import AuthServiceError
 from app import app
-from werkzeug.exceptions import Forbidden
 
 @pytest.fixture(name="_client")
 def client_fixture():
@@ -81,7 +81,9 @@ def test_oauth_authorize_service_function_successfully_authorizes_user(mocker):
     mock_authlib_call.return_value = {'userinfo': fake_google_profile}
 
     # Mock the mongoDB function being called
-    mock_user_service_call = mocker.patch('auth.services.user_services.get_or_create_user_from_oidc')
+    mock_user_service_call = mocker.patch(
+        'auth.services.user_services.get_or_create_user_from_oidc'
+    )
 
     # Create a fake user document to mock the database return
     expected_user_document = {
@@ -130,7 +132,7 @@ def test_login_required_decorator_redirects_anon_user(_client):
         # Define a fake view function that the decorator will wrap
         @login_required
         def fake_protected_view():
-            return "You should not see this!"
+            return jsonify(message="You should not see this!")
 
         # Act
         # Call the decorated function
@@ -190,7 +192,7 @@ def test_login_required_with_invalid_user_id_clears_session_and_redirects(mocker
         # Define the decorated fake view
         @login_required
         def fake_protected_view():
-            return "This should never be returned."
+            return jsonify(message="This should never be returned.")
 
         # Act
         response = fake_protected_view()

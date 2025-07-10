@@ -1,4 +1,5 @@
 """Flask application module for managing a collection of books."""
+# pylint: disable=cyclic-import
 import uuid
 import copy
 import os

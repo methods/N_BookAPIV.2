@@ -5,7 +5,7 @@ import pytest
 from pymongo import MongoClient
 from app import app
 
-
+# pylint: disable=R0801
 @pytest.fixture(name="client")
 def client_fixture():
     """Provides a test client for making requests to our Flask app."""

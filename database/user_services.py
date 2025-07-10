@@ -1,12 +1,12 @@
 """ Contains all mongoDB user service functions """
+from datetime import datetime, timezone
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 from bson.objectid import ObjectId, InvalidId
-from datetime import datetime, timezone
 
 def get_users_collection():
     """Establishes a connection and returns the users collection."""
-    from app import app
+    from app import app # pylint: disable=import-outside-toplevel
     try:
         # This creates a NEW client connection every time it's called.
         client = MongoClient(app.config['MONGO_URI'], serverSelectionTimeoutMS=5000)
@@ -27,23 +27,23 @@ def get_or_create_user_from_oidc(profile):
 
     if existing_user:
         return existing_user
-    else:
-        # Prepare the new_user_doc
-        new_user_doc = {
-            'google_id': profile['sub'],
-            'email': profile['email'],
-            'name': profile.get('name'),
-            'roles': ['viewer'], # Assign default role
-            'createdAt': datetime.now(timezone.utc),
-            'lastLogin': datetime.now(timezone.utc)
-        }
 
-        # Insert this into the database
-        result = users_collection.insert_one(new_user_doc)
+    # Prepare the new_user_doc
+    new_user_doc = {
+        'google_id': profile['sub'],
+        'email': profile['email'],
+        'name': profile.get('name'),
+        'roles': ['viewer'], # Assign default role
+        'createdAt': datetime.now(timezone.utc),
+        'lastLogin': datetime.now(timezone.utc)
+    }
 
-        # Explicitly assign the ['_id'] field from the inserted_id
-        new_user_doc['_id'] = result.inserted_id
-        return new_user_doc
+    # Insert this into the database
+    result = users_collection.insert_one(new_user_doc)
+
+    # Explicitly assign the ['_id'] field from the inserted_id
+    new_user_doc['_id'] = result.inserted_id
+    return new_user_doc
 
 def find_user_by_id(user_id):
     """

@@ -1,8 +1,8 @@
 # pylint: disable=missing-docstring
+from unittest.mock import MagicMock
 import pytest
 from pymongo.errors import ConnectionFailure
 from bson.objectid import ObjectId
-from unittest.mock import MagicMock, call
 from database.mongo_helper import insert_book_to_mongo
 from database import user_services
 

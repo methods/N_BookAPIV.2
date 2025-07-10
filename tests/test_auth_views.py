@@ -5,8 +5,8 @@ import logging
 from flask import redirect, session
 from bson.objectid import ObjectId # This is imported so we can create a mongoDB-like ObjectId
 import pytest
-import auth.services as auth_services
 from authlib.integrations.base_client import OAuthError
+import auth.services as auth_services
 from app import app
 
 @pytest.fixture(name="client")

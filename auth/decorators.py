@@ -4,6 +4,9 @@ from flask import session, redirect, g, abort
 from database import user_services
 
 def login_required(f):
+    """
+    A decorator to ensure that a user is logged in.
+    """
     @wraps(f)
     def decorated_function(*args, **kwargs):
         #

@@ -15,8 +15,6 @@ APP_SECRET_KEY = os.getenv('SECRET_KEY')
 # Custom exception for this module
 class AuthServiceError(Exception):
     """Custom exception for authentication service failures."""
-    pass
-
 
 def init_oauth(app):
     """Initialize the OAuth client, attach it to the Flask app"""

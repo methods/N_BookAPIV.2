@@ -8,6 +8,7 @@ from app import app, get_book_collection
 
 # Option 1: Rename the fixture to something unique (which I've used)
 # Option 2: Use a linter plugin that understands pytest
+# pylint: disable=R0801
 @pytest.fixture(name="client")
 def client_fixture():
     app.config['TESTING'] = True
