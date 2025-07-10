@@ -12,7 +12,7 @@ from app import app, get_book_collection
 @pytest.fixture(name="client")
 def client_fixture():
     app.config['TESTING'] = True
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', "a-secure-key-for-testing-only")
     return app.test_client()
 
 # This client fixture is logged in as a fake admin user

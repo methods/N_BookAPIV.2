@@ -13,7 +13,7 @@ from app import app
 @pytest.fixture(name="_client")
 def client_fixture():
     app.config['TESTING'] = True
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', "a-secure-key-for-testing-only")
     auth_services.init_oauth(app)
     return app.test_client()
 

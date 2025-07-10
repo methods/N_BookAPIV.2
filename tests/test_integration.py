@@ -13,7 +13,7 @@ def client_fixture():
     app.config['MONGO_URI'] = 'mongodb://localhost:27017/'
     app.config['DB_NAME'] = 'test_database'
     app.config['COLLECTION_NAME'] = 'test_books'
-    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+    app.config['SECRET_KEY'] = os.getenv('SECRET_KEY', "a-secure-key-for-testing-only")
     return app.test_client()
 
 # This client fixture is logged in as a fake admin user
