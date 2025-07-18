@@ -6,3 +6,9 @@ def insert_book_to_mongo(new_book, books_collection):
     if result.acknowledged:
         print("New book was successfully inserted.")
     return str(result.inserted_id)
+
+def find_all_books(books_collection):
+    """
+    Returns a list of all books in the collection.
+    """
+    pass

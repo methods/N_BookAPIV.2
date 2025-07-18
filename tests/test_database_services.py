@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 from pymongo.errors import ConnectionFailure
 from bson.objectid import ObjectId
-from database.mongo_helper import insert_book_to_mongo
+from database.mongo_helper import insert_book_to_mongo, find_all_books
 from database import user_services
 
 def test_insert_book_to_mongo():
@@ -28,6 +28,40 @@ def test_insert_book_to_mongo():
     # Assertions
     mock_books_collection.insert_one.assert_called_once_with(new_book)
     assert result == '12345'
+
+def test_find_all_books(mocker):
+    """
+    WHEN find_all_books is called
+    THEN it should call find(), convert the cursor to a list, and stringify the IDs.
+    """
+    # Arrange
+    # Mock the books collection
+    mock_books_collection = MagicMock()
+    # Test data
+    fake_book_id_1 = ObjectId()
+    fake_book_id_2 = ObjectId()
+    mock_db_data = [
+        {'_id': fake_book_id_1, 'title': 'Book One'},
+        {'_id': fake_book_id_2, 'title': 'Book Two'}
+    ]
+    # Configure the mock collection's find() method to return our fake data
+    #    (A list is a valid iterable, so it works as a fake cursor for the test)
+    mock_books_collection.find.return_value = mock_db_data
+
+    # Act
+    result = find_all_books(mock_books_collection)
+
+    # Assert
+    # Find called correctly?
+    mock_books_collection.find.assert_called_once_with({})
+
+    # Did the function return a list of the correct length?
+    assert isinstance(result, list)
+    assert len(result) == 2
+
+    # Was the ObjectId correctly converted to a string in the result?
+    assert result[0]['_id'] == str(fake_book_id_1)
+    assert result[1]['title'] == 'Book Two'
 
 def test_get_or_create_user_with_existing_user(mocker):
     """
