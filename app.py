@@ -9,7 +9,7 @@ from flask import Flask, request, jsonify
 from werkzeug.exceptions import NotFound
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
-from database.mongo_helper import insert_book_to_mongo
+from database.mongo_helper import insert_book_to_mongo, find_all_books
 from auth.services import init_oauth
 from auth.views import auth_bp # Imports the blueprint object from the auth module
 from auth.decorators import login_required, roles_required
@@ -119,14 +119,17 @@ def get_all_books():
     return them in a JSON response
     including the total count.
     """
-    if not books:
-        return jsonify({"error": "No books found"}), 404
+    # if not books:
+    #     return jsonify({"error": "No books found"}), 404
+
+    books_collection = get_book_collection()
+    books_list_result, total_count_result = find_all_books(books_collection)
 
     all_books = []
     # extract host from the request
     host = request.host_url
 
-    for book in books:
+    for book in books_list_result:
         # check if the book has the "deleted" state
         if book.get("state")!="deleted":
             # if the book has a state other than "deleted" remove the state field before appending
