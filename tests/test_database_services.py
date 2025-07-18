@@ -49,19 +49,21 @@ def test_find_all_books(mocker):
     mock_books_collection.find.return_value = mock_db_data
 
     # Act
-    result = find_all_books(mock_books_collection)
+    books_list_result, total_count_result = find_all_books(mock_books_collection)
 
     # Assert
     # Find called correctly?
     mock_books_collection.find.assert_called_once_with({})
 
-    # Did the function return a list of the correct length?
-    assert isinstance(result, list)
-    assert len(result) == 2
+    # Did the function return a list of the correct length and are the test books present?
+    assert isinstance(books_list_result, list)
+    assert len(books_list_result) == 2
+    assert books_list_result[0]['_id'] == str(fake_book_id_1)
+    assert books_list_result[1]['title'] == 'Book Two'
 
-    # Was the ObjectId correctly converted to a string in the result?
-    assert result[0]['_id'] == str(fake_book_id_1)
-    assert result[1]['title'] == 'Book Two'
+    # Is the total_count present and correct?
+    assert isinstance(total_count_result, int)
+    assert total_count_result == 2
 
 def test_get_or_create_user_with_existing_user(mocker):
     """

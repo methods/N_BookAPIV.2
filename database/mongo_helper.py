@@ -11,4 +11,18 @@ def find_all_books(books_collection):
     """
     Returns a list of all books in the collection.
     """
-    pass
+    # Use find({}) to get a mongoDB Cursor object for all books
+    books_cursor = books_collection.find({})
+
+    # Use list() to iterate through the collection using the Cursor
+    books_list = list(books_cursor)
+
+    # Count the items in the list
+    total_count = len(books_list)
+
+    # Convert all the BSON _id to strings so the list can be JSON serialized
+    for book in books_list:
+        book['_id'] = str(book['_id'])
+
+    # Return the list and the count
+    return books_list, total_count
