@@ -50,6 +50,30 @@ def mongo_client_fixture():
     # Clean up the mongoDB after the test
     client.drop_database("test_database")
 
+# Define multiple book payloads for testing
+book_payloads = [
+    {
+        "title": "The Midnight Library",
+        "synopsis": "A novel about all the choices that go into a life well lived.",
+        "author": "Matt Haig"
+    },
+    {
+        "title": "Educated",
+        "synopsis": "A memoir about a woman who leaves her survivalist family and goes on to earn a PhD from Cambridge University.",
+        "author": "Tara Westover"
+    },
+    {
+        "title": "Becoming",
+        "synopsis": "An autobiography by the former First Lady of the United States, Michelle Obama.",
+        "author": "Michelle Obama"
+    },
+    {
+        "title": "The Silent Patient",
+        "synopsis": "A psychological thriller about a woman who shoots her husband and then never speaks again.",
+        "author": "Alex Michaelides"
+    }
+]
+
 def test_post_route_inserts_to_mongodb(mongo_client, admin_client):
     # # Set up the test DB and collection
     db = mongo_client['test_database']
@@ -79,3 +103,33 @@ def test_post_route_inserts_to_mongodb(mongo_client, admin_client):
     saved_book = collection.find_one({"title": "The Midnight Library"})
     assert saved_book is not None
     assert saved_book["author"] == "Matt Haig"
+
+def test_get_all_books_gets_from_mongodb(mongo_client, admin_client):
+    # Set up the test db and collection
+    db = mongo_client['test_database']
+    collection = db['test_books']
+
+    # Arrange
+    # POST several books to the test database
+    for book_payload in book_payloads:
+        response = admin_client.post(
+            "/books",
+            json=book_payload
+        )
+
+    # Act: GET all books
+    response = admin_client.get("/books")
+
+    # Assert: Check the response
+    assert response.status_code == 200
+    assert response.headers["content-type"] == "application/json"
+    response_data = response.get_json()
+    assert isinstance(response_data, dict)
+    assert 'total_count' in response_data
+    assert 'items' in response_data
+    # Assert: Check the total count of books
+    assert response_data['total_count'] == len(book_payloads)
+
+    # Assert: Check the title of one of the inserted books
+    book_titles = [book['title'] for book in response_data['items']]
+    assert "The Midnight Library" in book_titles

@@ -7,9 +7,6 @@ OMIT_PATTERN="tests/*,venv/*"
 # Check if the tests passed
 if [ $? -eq 0 ]; then
     echo "✅ Tests passed."
-    # Generate terminal coverage report
-    echo "Generating coverage report..."
-    coverage report -m --omit="$OMIT_PATTERN"
     # Enforce 100% coverage
     echo "Checking for 100% coverage..."
     coverage report --fail-under=100 -m --omit="$OMIT_PATTERN"
