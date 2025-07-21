@@ -1,4 +1,5 @@
 """Module containing pymongo helper functions."""
+from bson.objectid import ObjectId, InvalidId
 
 def insert_book_to_mongo(new_book, books_collection):
     """Add a new book to the MongoDB collection."""
@@ -27,8 +28,22 @@ def find_all_books(books_collection):
     # Return the list and the count
     return books_list, total_count
 
-def find_one_book(book_id):
+def find_one_book(book_id: str, books_collection):
     """
     Returns a book specified by _id from the MongoDB collection.
     """
-    pass
+    try:
+        # 1. Convert the string ID to a BSON ObjectId
+        obj_id = ObjectId(book_id)
+
+        # 2. Ask the database to find exactly one document with this _id
+        #    This is extremely fast if you have the default _id index.
+        book = books_collection.find_one({'_id': obj_id})
+
+        if book:
+            # 3. Process the document for the view
+            book['_id'] = str(book['_id'])
+
+        return book
+    except InvalidId:
+        return None

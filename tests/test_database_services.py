@@ -102,7 +102,7 @@ def test_find_one_book(mocker):
     mock_books_collection.find_one.side_effect = find_one_side_effect
 
     # Act and assert for the correct_id
-    result_success = find_one_book(str(correct_id))
+    result_success = find_one_book(str(correct_id), mock_books_collection)
 
     # Assert that it returned the full document, with the ID correctly stringified
     assert result_success is not None
@@ -110,13 +110,34 @@ def test_find_one_book(mocker):
     assert result_success['_id'] == str(correct_id)
 
     # Act and assert for the wrong_id
-    result_failure = find_one_book(str(wrong_id))
+    result_failure = find_one_book(str(wrong_id), mock_books_collection)
 
     # Assert that it correctly returned None
     assert result_failure is None
 
     # We can also check the total calls to our mock
     assert mock_books_collection.find_one.call_count == 2
+
+def test_find_book_by_id_with_invalid_id_string_returns_none():
+    """
+    UNIT TEST:
+    GIVEN a string that is not a valid MongoDB ObjectId
+    WHEN find_book_by_id is called with it
+    THEN it should catch the InvalidId exception and return None gracefully.
+    """
+    # ARRANGE
+    # Mock the books collection
+    mock_books_collection = MagicMock()
+    # A string that will cause `ObjectId()` to raise InvalidId
+    malformed_id_string = "this-is-definitely-not-a-mongo-id"
+
+    # ACT
+    # Call the real function with the bad input.
+    result = find_one_book(malformed_id_string, mock_books_collection)
+
+    # ASSERT
+    # The function should have caught the exception and returned None, not crashed.
+    assert result is None
 
 def test_get_or_create_user_with_existing_user(mocker):
     """
