@@ -251,9 +251,11 @@ def test_missing_fields_in_book_object_returned_by_database(mocker, client):
     assert "Missing fields" in response.get_json()["error"]
 
  #-------- Tests for filter GET /books by delete ----------------
-def test_get_books_excludes_deleted_books_and_omits_state_field(client):
-    # Add a book so we have a known ID
-    with patch("app.books", [
+def test_get_books_excludes_deleted_books_and_omits_state_field(mocker, client):
+    # Arrange
+    # Mock the service function in app.py that get_all depends on
+    mock_get_books = mocker.patch('app.find_all_books')
+    mock_get_books.return_value = ([
         {
             "id": "1",
             "title": "The Great Adventure",
@@ -289,20 +291,21 @@ def test_get_books_excludes_deleted_books_and_omits_state_field(client):
                 "reviews": "/books/3/reviews"
             }
         }
-    ]):
-        response = client.get("/books")
-        assert response.status_code == 200
+                                    ], 0)
 
-        data = response.get_json()
-        assert "items" in data
-        books = data["items"]
+    response = client.get("/books")
+    assert response.status_code == 200
 
-        # Check right object is returned
-        assert len(books) == 2
-        for book in books:
-            assert "state" not in book
-        assert books[0].get("id") == '2'
-        assert books[1].get("title") == "The Science of Everything"
+    data = response.get_json()
+    assert "items" in data
+    books = data["items"]
+
+    # Check right object is returned
+    assert len(books) == 2
+    for book in books:
+        assert "state" not in book
+    assert books[0].get("id") == '2'
+    assert books[1].get("title") == "The Science of Everything"
 
  #-------- Tests for GET a single resource ----------------
 
