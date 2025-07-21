@@ -312,7 +312,7 @@ def test_get_books_excludes_deleted_books_and_omits_state_field(mocker, client):
 def test_get_book_returns_specified_book(mocker, client):
     # Arrange
     # Mock the service function in app.py that get_book depends on
-    mock_get_book = mocker.patch('app.find_book')
+    mock_get_book = mocker.patch('app.find_one_book')
     mock_get_book.return_value = ([
       {
           "_id": "6855632dd4e66f0d8b052770",

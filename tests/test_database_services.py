@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 from pymongo.errors import ConnectionFailure
 from bson.objectid import ObjectId
-from database.mongo_helper import insert_book_to_mongo, find_all_books
+from database.mongo_helper import insert_book_to_mongo, find_all_books, find_one_book
 from database import user_services
 
 def test_insert_book_to_mongo():
@@ -64,6 +64,59 @@ def test_find_all_books(mocker):
     # Is the total_count present and correct?
     assert isinstance(total_count_result, int)
     assert total_count_result == 2
+
+def test_find_one_book(mocker):
+    """
+    GIVEN a mocked find_one that behaves conditionally
+    WHEN find_book_by_id is called with a matching ID, it should return the document.
+    WHEN called with a non-matching ID, it should return None.
+    """
+    # Arrange
+    # Mock the books collection
+    mock_books_collection = MagicMock()
+
+    # 2. Define our "fake database" state and the specific IDs we will test.
+    correct_id = ObjectId()
+    wrong_id = ObjectId()
+
+    fake_book_in_db = {
+        '_id': correct_id,
+        'title': 'The Correct Book',
+        'author': 'Jane Doe'
+    }
+
+    # 3. Define the "side effect" function. This is our smart mock logic.
+    #    It must accept the same arguments as the real find_one method.
+    def find_one_side_effect(query):
+        print(f"Mock find_one was called with query: {query}")  # For debugging!
+
+        # Check if the query matches what we expect for the correct book
+        if query == {'_id': correct_id}:
+            # If the query is correct, return the document
+            return fake_book_in_db
+        else:
+            # For any other query, simulate "not found"
+            return None
+
+    # Assign the custom function to the mock's side effect attribute
+    mock_books_collection.find_one.side_effect = find_one_side_effect
+
+    # Act and assert for the correct_id
+    result_success = find_one_book(str(correct_id))
+
+    # Assert that it returned the full document, with the ID correctly stringified
+    assert result_success is not None
+    assert result_success['title'] == 'The Correct Book'
+    assert result_success['_id'] == str(correct_id)
+
+    # Act and assert for the wrong_id
+    result_failure = find_one_book(str(wrong_id))
+
+    # Assert that it correctly returned None
+    assert result_failure is None
+
+    # We can also check the total calls to our mock
+    assert mock_books_collection.find_one.call_count == 2
 
 def test_get_or_create_user_with_existing_user(mocker):
     """
