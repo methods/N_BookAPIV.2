@@ -182,17 +182,40 @@ def test_get_all_books_returns_all_books(client):
     assert 'total_count' in response_data
     assert 'items' in response_data
 
-def test_return_error_404_when_list_is_empty(client):
-    with patch("app.books", []):
-        response = client.get("/books")
-        assert response.status_code == 404
-        assert "No books found" in response.get_json()["error"]
+def test_get_all_returns_correctly_when_list_is_empty(mocker, client):
+    """
+    Given an empty list, when get_all is called it
+    should return 200 OK with the correct empty list and count structure.
+    """
+    # Arrange
+    # Mock the service function in app.py that get_all depends on
+    mock_get_books = mocker.patch('app.find_all_books')
+    mock_get_books.return_value = ([], 0)
 
-def test_get_books_returns_404_when_books_is_none(client):
-    with patch("app.books", None):
-        response = client.get("/books")
-        assert response.status_code == 404
-        assert "No books found" in response.get_json()["error"]
+    #Act
+    response = client.get("/books")
+
+    # Assert
+    assert response.status_code == 200
+    assert response.content_type == "application/json"
+
+    response_data = response.get_json()
+    assert response_data == {
+        "total_count": 0,
+        "items": []
+    }
+    mock_get_books.assert_called_once()
+
+def test_get_all_books_returns_500_if_service_returns_none(mocker, client):
+    # Arrange
+    # Mock the service function in app.py that get_all depends on
+    mock_get_books = mocker.patch('app.find_all_books')
+    mock_get_books.return_value = None
+
+    response = client.get("/books")
+    assert response.status_code == 500
+    assert "error" in response.get_json()
+    assert "cannot unpack non-iterable NoneType object" in response.get_json()["error"]
 
 def test_missing_fields_in_book_object_returned_by_database(client):
     with patch("app.books", [
