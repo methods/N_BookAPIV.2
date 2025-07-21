@@ -26,3 +26,9 @@ def find_all_books(books_collection):
 
     # Return the list and the count
     return books_list, total_count
+
+def find_book(book_id):
+    """
+    Returns a book specified by _id from the MongoDB collection.
+    """
+    pass
