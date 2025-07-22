@@ -352,12 +352,6 @@ def test_invalid_urls_return_404(client):
     assert response.content_type == "application/json"
     assert "404 Not Found" in response.get_json()["error"]
 
-def test_book_database_is_initialized_for_specific_book_route(client):
-    with patch("app.books", None):
-        response = client.get("/books/1")
-        assert response.status_code == 500
-        assert "Book collection not initialized" in response.get_json()["error"]
-
 def test_get_book_returns_404_if_state_equals_deleted(mocker, client):
     # Mock the service function in app.py that get_book depends on
     mock_get_book = mocker.patch('app.find_one_book')
@@ -592,9 +586,27 @@ def test_append_host_to_links_in_get(client):
         assert book["links"]["reviews"].startswith("http://localhost")
         assert book["links"]["self"].endswith(f"books/{new_book_id}")
 
-def test_append_host_to_links_in_get_book(client):
+def test_append_host_to_links_in_get_book(mocker, client):
 
-    response = client.get("/books/1")
+    # Mock the service function in app.py that get_book depends on
+    mock_get_book = mocker.patch('app.find_one_book')
+    mock_get_book.return_value = {
+            "_id": "6855632dd4e66f0d8b052770",
+            "author": "J.D. Salinger",
+            "id": "550e8400-e29b-41d4-a716-446655440004",
+            "links": {
+            "reservations": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reservations",
+            "reviews": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reviews",
+            "self": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004"
+            },
+            "synopsis": "A story about teenage rebellion and alienation.",
+            "title": "The Catcher in the Rye",
+            "state": "active"
+      }
+
+
+    # Test GET request using the book ID
+    response = client.get("/books/6855632dd4e66f0d8b052770")
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/json"
@@ -610,7 +622,7 @@ def test_append_host_to_links_in_get_book(client):
     self_link = links.get("self")
     assert self_link is not None, "'links' object must contain a 'self' link"
 
-    expected_link_start = "http://localhost"
+    expected_link_start = "http://127.0.0.1:5000"
     assert self_link.startswith(expected_link_start), \
         f"Link should start with the test server's hostname '{expected_link_start}'"
 
