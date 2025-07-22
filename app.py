@@ -171,20 +171,29 @@ def get_book(book_id):
     """
     Retrieve a specific book by its unique ID.
     """
-    if not books:
-        return jsonify({"error": "Book collection not initialized"}), 500
+
 
     # extract host from the request
     host = request.host_url
 
-    for book in books:
-        if book.get("id") == book_id and book.get("state") != "deleted":
-            # copy the book
-            book_copy = copy.deepcopy(book)
-            book_copy.pop("state", None)
-            # Add the hostname to the book_copy object and return it
-            return jsonify(append_hostname(book_copy, host)), 200
+    books_collection = get_book_collection()
+    print("book_id", book_id)
+    searched_book = find_one_book(book_id, books_collection)
+
+    if searched_book.get("state")!="deleted":
+        return jsonify(append_hostname(searched_book, host)), 200
     return jsonify({"error": "Book not found"}), 404
+
+
+    #
+    # for book in books:
+    #     if book.get("id") == book_id and book.get("state") != "deleted":
+    #         # copy the book
+    #         book_copy = copy.deepcopy(book)
+    #         book_copy.pop("state", None)
+    #         # Add the hostname to the book_copy object and return it
+    #         return jsonify(append_hostname(book_copy, host)), 200
+    # return jsonify({"error": "Book not found"}), 404
 
 
 # ----------- DELETE section ------------------
