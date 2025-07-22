@@ -313,28 +313,30 @@ def test_get_book_returns_specified_book(mocker, client):
     # Arrange
     # Mock the service function in app.py that get_book depends on
     mock_get_book = mocker.patch('app.find_one_book')
-    mock_get_book.return_value = ([
-      {
-          "_id": "6855632dd4e66f0d8b052770",
-          "author": "J.D. Salinger",
-          "id": "550e8400-e29b-41d4-a716-446655440004",
-          "links": {
-              "reservations": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reservations",
-              "reviews": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reviews",
-              "self": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004"
-          },
-          "synopsis": "A story about teenage rebellion and alienation.",
-          "title": "The Catcher in the Rye"
+    mock_get_book.return_value = {
+            "_id": "6855632dd4e66f0d8b052770",
+            "author": "J.D. Salinger",
+            "id": "550e8400-e29b-41d4-a716-446655440004",
+            "links": {
+            "reservations": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reservations",
+            "reviews": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reviews",
+            "self": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004"
+            },
+            "synopsis": "A story about teenage rebellion and alienation.",
+            "title": "The Catcher in the Rye",
+            "state": "active"
       }
-    ], 1)
+
 
     # Test GET request using the book ID
     get_response = client.get("/books/6855632dd4e66f0d8b052770")
+
     assert get_response.status_code == 200
     assert get_response.content_type == "application/json"
     returned_book = get_response.get_json()
     assert returned_book["_id"] == "6855632dd4e66f0d8b052770"
     assert returned_book["title"] == "The Catcher in the Rye"
+    assert "state" not in returned_book
 
 def test_get_book_not_found_returns_404(client):
     # Test GET request using invalid book ID
