@@ -329,11 +329,11 @@ def test_get_book_returns_specified_book(mocker, client):
 
 
     # Test GET request using the book ID
-    get_response = client.get("/books/6855632dd4e66f0d8b052770")
+    response = client.get("/books/6855632dd4e66f0d8b052770")
 
-    assert get_response.status_code == 200
-    assert get_response.content_type == "application/json"
-    returned_book = get_response.get_json()
+    assert response.status_code == 200
+    assert response.content_type == "application/json"
+    returned_book = response.get_json()
     assert returned_book["_id"] == "6855632dd4e66f0d8b052770"
     assert returned_book["title"] == "The Catcher in the Rye"
     assert "state" not in returned_book
@@ -358,9 +358,25 @@ def test_book_database_is_initialized_for_specific_book_route(client):
         assert response.status_code == 500
         assert "Book collection not initialized" in response.get_json()["error"]
 
-def test_get_book_returns_404_if_state_equals_deleted(client):
-    book_id = "3"
-    response = client.get(f"/books/{book_id}")
+def test_get_book_returns_404_if_state_equals_deleted(mocker, client):
+    # Mock the service function in app.py that get_book depends on
+    mock_get_book = mocker.patch('app.find_one_book')
+    mock_get_book.return_value = {
+            "_id": "6855632dd4e66f0d8b052770",
+            "author": "J.D. Salinger",
+            "id": "550e8400-e29b-41d4-a716-446655440004",
+            "links": {
+            "reservations": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reservations",
+            "reviews": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reviews",
+            "self": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004"
+            },
+            "synopsis": "A story about teenage rebellion and alienation.",
+            "title": "The Catcher in the Rye",
+            "state": "deleted"
+      }
+    # Test GET request using the book ID
+    response = client.get("/books/6855632dd4e66f0d8b052770")
+
     assert response.status_code == 404
     assert response.content_type == "application/json"
     assert "Book not found" in response.get_json()["error"]
