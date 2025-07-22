@@ -178,6 +178,9 @@ def get_book(book_id):
 
     searched_book = find_one_book(book_id, books_collection)
 
+    if not searched_book:
+        return jsonify({"error": "Book not found"}), 404
+
     if searched_book.get("state")!="deleted":
         book_copy = copy.deepcopy(searched_book)
         book_copy.pop("state", None)
