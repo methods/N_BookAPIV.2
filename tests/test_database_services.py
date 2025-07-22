@@ -120,23 +120,22 @@ def test_find_one_book(mocker):
 
 def test_find_book_by_id_with_invalid_id_string_returns_none():
     """
-    UNIT TEST:
     GIVEN a string that is not a valid MongoDB ObjectId
     WHEN find_book_by_id is called with it
     THEN it should catch the InvalidId exception and return None gracefully.
     """
-    # ARRANGE
+    # Arrange
     # Mock the books collection
     mock_books_collection = MagicMock()
     # A string that will cause `ObjectId()` to raise InvalidId
     malformed_id_string = "this-is-definitely-not-a-mongo-id"
 
-    # ACT
+    # Act
     # Call the real function with the bad input.
     result = find_one_book(malformed_id_string, mock_books_collection)
 
-    # ASSERT
-    # The function should have caught the exception and returned None, not crashed.
+    # Assert
+    # The function should catch the Exception and return None
     assert result is None
 
 def test_get_or_create_user_with_existing_user(mocker):

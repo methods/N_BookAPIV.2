@@ -33,15 +33,14 @@ def find_one_book(book_id: str, books_collection):
     Returns a book specified by _id from the MongoDB collection.
     """
     try:
-        # 1. Convert the string ID to a BSON ObjectId
+        # Convert the string ID to a BSON ObjectId
         obj_id = ObjectId(book_id)
 
-        # 2. Ask the database to find exactly one document with this _id
-        #    This is extremely fast if you have the default _id index.
+        # Use mongoDB built in find_one method
         book = books_collection.find_one({'_id': obj_id})
 
         if book:
-            # 3. Process the document for the view
+            # Process the document appropriately
             book['_id'] = str(book['_id'])
 
         return book
