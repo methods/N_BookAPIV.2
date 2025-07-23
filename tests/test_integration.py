@@ -59,17 +59,20 @@ book_payloads = [
     },
     {
         "title": "Educated",
-        "synopsis": "A memoir about a woman who leaves her survivalist family and goes on to earn a PhD from Cambridge University.",
+        "synopsis": "A memoir about a woman who leaves her survivalist family "
+                    "and goes on to earn a PhD from Cambridge University.",
         "author": "Tara Westover"
     },
     {
         "title": "Becoming",
-        "synopsis": "An autobiography by the former First Lady of the United States, Michelle Obama.",
+        "synopsis": "An autobiography by the former First Lady "
+                    "of the United States, Michelle Obama.",
         "author": "Michelle Obama"
     },
     {
         "title": "The Silent Patient",
-        "synopsis": "A psychological thriller about a woman who shoots her husband and then never speaks again.",
+        "synopsis": "A psychological thriller about a woman who shoots "
+                    "her husband and then never speaks again.",
         "author": "Alex Michaelides"
     }
 ]
@@ -104,10 +107,7 @@ def test_post_route_inserts_to_mongodb(mongo_client, admin_client):
     assert saved_book is not None
     assert saved_book["author"] == "Matt Haig"
 
-def test_get_all_books_gets_from_mongodb(mongo_client, admin_client):
-    # Set up the test db and collection
-    db = mongo_client['test_database']
-    collection = db['test_books']
+def test_get_all_books_gets_from_mongodb(admin_client):
 
     # Arrange
     # POST several books to the test database

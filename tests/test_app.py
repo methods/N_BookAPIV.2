@@ -318,9 +318,12 @@ def test_get_book_returns_specified_book(mocker, client):
             "author": "J.D. Salinger",
             "id": "550e8400-e29b-41d4-a716-446655440004",
             "links": {
-            "reservations": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reservations",
-            "reviews": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reviews",
-            "self": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004"
+            "reservations":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reservations",
+            "reviews":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reviews",
+            "self":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004"
             },
             "synopsis": "A story about teenage rebellion and alienation.",
             "title": "The Catcher in the Rye",
@@ -360,9 +363,12 @@ def test_get_book_returns_404_if_state_equals_deleted(mocker, client):
             "author": "J.D. Salinger",
             "id": "550e8400-e29b-41d4-a716-446655440004",
             "links": {
-            "reservations": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reservations",
-            "reviews": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reviews",
-            "self": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004"
+            "reservations":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reservations",
+            "reviews":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reviews",
+            "self":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004"
             },
             "synopsis": "A story about teenage rebellion and alienation.",
             "title": "The Catcher in the Rye",
@@ -595,9 +601,12 @@ def test_append_host_to_links_in_get_book(mocker, client):
             "author": "J.D. Salinger",
             "id": "550e8400-e29b-41d4-a716-446655440004",
             "links": {
-            "reservations": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reservations",
-            "reviews": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reviews",
-            "self": "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004"
+            "reservations":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reservations",
+            "reviews":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reviews",
+            "self":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004"
             },
             "synopsis": "A story about teenage rebellion and alienation.",
             "title": "The Catcher in the Rye",

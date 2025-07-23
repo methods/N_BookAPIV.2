@@ -123,7 +123,7 @@ def get_all_books():
     #     return jsonify({"error": "No books found"}), 404
 
     books_collection = get_book_collection()
-    books_list_result, total_count_result = find_all_books(books_collection)
+    books_list_result, _total_count_result = find_all_books(books_collection)
 
     all_books = []
     # extract host from the request
