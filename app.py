@@ -9,7 +9,7 @@ from flask import Flask, request, jsonify
 from werkzeug.exceptions import NotFound
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
-from database.mongo_helper import insert_book_to_mongo
+from database.mongo_helper import insert_book_to_mongo, find_all_books, find_one_book
 from auth.services import init_oauth
 from auth.views import auth_bp # Imports the blueprint object from the auth module
 from auth.decorators import login_required, roles_required
@@ -119,14 +119,17 @@ def get_all_books():
     return them in a JSON response
     including the total count.
     """
-    if not books:
-        return jsonify({"error": "No books found"}), 404
+    # if not books:
+    #     return jsonify({"error": "No books found"}), 404
+
+    books_collection = get_book_collection()
+    books_list_result, _total_count_result = find_all_books(books_collection)
 
     all_books = []
     # extract host from the request
     host = request.host_url
 
-    for book in books:
+    for book in books_list_result:
         # check if the book has the "deleted" state
         if book.get("state")!="deleted":
             # if the book has a state other than "deleted" remove the state field before appending
@@ -168,21 +171,21 @@ def get_book(book_id):
     """
     Retrieve a specific book by its unique ID.
     """
-    if not books:
-        return jsonify({"error": "Book collection not initialized"}), 500
-
     # extract host from the request
     host = request.host_url
 
-    for book in books:
-        if book.get("id") == book_id and book.get("state") != "deleted":
-            # copy the book
-            book_copy = copy.deepcopy(book)
-            book_copy.pop("state", None)
-            # Add the hostname to the book_copy object and return it
-            return jsonify(append_hostname(book_copy, host)), 200
-    return jsonify({"error": "Book not found"}), 404
+    books_collection = get_book_collection()
 
+    searched_book = find_one_book(book_id, books_collection)
+
+    if not searched_book:
+        return jsonify({"error": "Book not found"}), 404
+
+    if searched_book.get("state")!="deleted":
+        book_copy = copy.deepcopy(searched_book)
+        book_copy.pop("state", None)
+        return jsonify(append_hostname(book_copy, host)), 200
+    return jsonify({"error": "Book not found"}), 404
 
 # ----------- DELETE section ------------------
 @app.route("/books/<string:book_id>", methods=["DELETE"])

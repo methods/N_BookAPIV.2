@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 from pymongo.errors import ConnectionFailure
 from bson.objectid import ObjectId
-from database.mongo_helper import insert_book_to_mongo
+from database.mongo_helper import insert_book_to_mongo, find_all_books, find_one_book
 from database import user_services
 
 def test_insert_book_to_mongo():
@@ -28,6 +28,113 @@ def test_insert_book_to_mongo():
     # Assertions
     mock_books_collection.insert_one.assert_called_once_with(new_book)
     assert result == '12345'
+
+def test_find_all_books():
+    """
+    WHEN find_all_books is called
+    THEN it should call find(), convert the cursor to a list, and stringify the IDs.
+    """
+    # Arrange
+    # Mock the books collection
+    mock_books_collection = MagicMock()
+    # Test data
+    fake_book_id_1 = ObjectId()
+    fake_book_id_2 = ObjectId()
+    mock_db_data = [
+        {'_id': fake_book_id_1, 'title': 'Book One'},
+        {'_id': fake_book_id_2, 'title': 'Book Two'}
+    ]
+    # Configure the mock collection's find() method to return our fake data
+    #    (A list is a valid iterable, so it works as a fake cursor for the test)
+    mock_books_collection.find.return_value = mock_db_data
+
+    # Act
+    books_list_result, total_count_result = find_all_books(mock_books_collection)
+
+    # Assert
+    # Find called correctly?
+    mock_books_collection.find.assert_called_once_with({})
+
+    # Did the function return a list of the correct length and are the test books present?
+    assert isinstance(books_list_result, list)
+    assert len(books_list_result) == 2
+    assert books_list_result[0]['_id'] == str(fake_book_id_1)
+    assert books_list_result[1]['title'] == 'Book Two'
+
+    # Is the total_count present and correct?
+    assert isinstance(total_count_result, int)
+    assert total_count_result == 2
+
+def test_find_one_book():
+    """
+    GIVEN a mocked find_one that behaves conditionally
+    WHEN find_book_by_id is called with a matching ID, it should return the document.
+    WHEN called with a non-matching ID, it should return None.
+    """
+    # Arrange
+    # Mock the books collection
+    mock_books_collection = MagicMock()
+
+    # 2. Define our "fake database" state and the specific IDs we will test.
+    correct_id = ObjectId()
+    wrong_id = ObjectId()
+
+    fake_book_in_db = {
+        '_id': correct_id,
+        'title': 'The Correct Book',
+        'author': 'Jane Doe'
+    }
+
+    # 3. Define the "side effect" function. This is our smart mock logic.
+    #    It must accept the same arguments as the real find_one method.
+    def find_one_side_effect(query):
+        print(f"Mock find_one was called with query: {query}")  # For debugging!
+
+        # Check if the query matches what we expect for the correct book
+        if query == {'_id': correct_id}:
+            # If the query is correct, return the document
+            return fake_book_in_db
+        return None
+
+    # Assign the custom function to the mock's side effect attribute
+    mock_books_collection.find_one.side_effect = find_one_side_effect
+
+    # Act and assert for the correct_id
+    result_success = find_one_book(str(correct_id), mock_books_collection)
+
+    # Assert that it returned the full document, with the ID correctly stringified
+    assert result_success is not None
+    assert result_success['title'] == 'The Correct Book'
+    assert result_success['_id'] == str(correct_id)
+
+    # Act and assert for the wrong_id
+    result_failure = find_one_book(str(wrong_id), mock_books_collection)
+
+    # Assert that it correctly returned None
+    assert result_failure is None
+
+    # We can also check the total calls to our mock
+    assert mock_books_collection.find_one.call_count == 2
+
+def test_find_book_by_id_with_invalid_id_string_returns_none():
+    """
+    GIVEN a string that is not a valid MongoDB ObjectId
+    WHEN find_book_by_id is called with it
+    THEN it should catch the InvalidId exception and return None gracefully.
+    """
+    # Arrange
+    # Mock the books collection
+    mock_books_collection = MagicMock()
+    # A string that will cause `ObjectId()` to raise InvalidId
+    malformed_id_string = "this-is-definitely-not-a-mongo-id"
+
+    # Act
+    # Call the real function with the bad input.
+    result = find_one_book(malformed_id_string, mock_books_collection)
+
+    # Assert
+    # The function should catch the Exception and return None
+    assert result is None
 
 def test_get_or_create_user_with_existing_user(mocker):
     """

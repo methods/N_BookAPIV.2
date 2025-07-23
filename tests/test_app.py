@@ -182,45 +182,80 @@ def test_get_all_books_returns_all_books(client):
     assert 'total_count' in response_data
     assert 'items' in response_data
 
-def test_return_error_404_when_list_is_empty(client):
-    with patch("app.books", []):
-        response = client.get("/books")
-        assert response.status_code == 404
-        assert "No books found" in response.get_json()["error"]
+def test_get_all_returns_correctly_when_list_is_empty(mocker, client):
+    """
+    Given an empty list, when get_all is called it
+    should return 200 OK with the correct empty list and count structure.
+    """
+    # Arrange
+    # Mock the service function in app.py that get_all depends on
+    mock_get_books = mocker.patch('app.find_all_books')
+    mock_get_books.return_value = ([], 0)
 
-def test_get_books_returns_404_when_books_is_none(client):
-    with patch("app.books", None):
-        response = client.get("/books")
-        assert response.status_code == 404
-        assert "No books found" in response.get_json()["error"]
+    #Act
+    response = client.get("/books")
 
-def test_missing_fields_in_book_object_returned_by_database(client):
-    with patch("app.books", [
-        {
-            "id": "1",
-            "title": "The Great Adventure",
-            "synopsis": "A thrilling adventure through the jungles of South America.",
-            "author": "Jane Doe"
-        },
-        {
-            "id": "2",
-            "title": "Mystery of the Old Manor"
-        },
-        {
-            "id": "3",
-            "title": "The Science of Everything",
-            "synopsis": "An in-depth look at the scientific principles that govern our world."
-        }
-    ]):
-        response = client.get("/books")
-        assert response.status_code == 500
-        assert "Missing fields" in response.get_json()["error"]
+    # Assert
+    assert response.status_code == 200
+    assert response.content_type == "application/json"
 
+    response_data = response.get_json()
+    assert response_data == {
+        "total_count": 0,
+        "items": []
+    }
+    mock_get_books.assert_called_once()
+
+def test_get_all_books_returns_500_if_service_returns_none(mocker, client):
+    # Arrange
+    # Mock the service function in app.py that get_all depends on
+    mock_get_books = mocker.patch('app.find_all_books')
+    mock_get_books.return_value = None
+
+    response = client.get("/books")
+    assert response.status_code == 500
+    assert "error" in response.get_json()
+    assert "cannot unpack non-iterable NoneType object" in response.get_json()["error"]
+
+def test_missing_fields_in_book_object_returned_by_database(mocker, client):
+    # Arrange
+    # Mock the service function in app.py that get_all depends on
+    mock_get_books = mocker.patch('app.find_all_books')
+    mock_get_books.return_value = ([
+            {
+                "id": "1",
+                "title": "The Great Adventure",
+                "synopsis": "A thrilling adventure through the jungles of South America.",
+                "author": "Jane Doe",
+                "links": {
+                    "self": "/books/1",
+                    "reservations": "/books/1/reservations",
+                    "reviews": "/books/1/reviews"
+                },
+                "state": "active"
+            },
+            {
+                "id": "2",
+                "title": "Mystery of the Old Manor",
+                "links": {
+                    "self": "/books/2",
+                    "reservations": "/books/2/reservations",
+                    "reviews": "/books/2/reviews"
+                },
+                "state": "active"
+            }
+                                   ], 0)
+
+    response = client.get("/books")
+    assert response.status_code == 500
+    assert "Missing fields" in response.get_json()["error"]
 
  #-------- Tests for filter GET /books by delete ----------------
-def test_get_books_excludes_deleted_books_and_omits_state_field(client):
-    # Add a book so we have a known ID
-    with patch("app.books", [
+def test_get_books_excludes_deleted_books_and_omits_state_field(mocker, client):
+    # Arrange
+    # Mock the service function in app.py that get_all depends on
+    mock_get_books = mocker.patch('app.find_all_books')
+    mock_get_books.return_value = ([
         {
             "id": "1",
             "title": "The Great Adventure",
@@ -256,31 +291,55 @@ def test_get_books_excludes_deleted_books_and_omits_state_field(client):
                 "reviews": "/books/3/reviews"
             }
         }
-    ]):
-        response = client.get("/books")
-        assert response.status_code == 200
+                                    ], 0)
 
-        data = response.get_json()
-        assert "items" in data
-        books = data["items"]
+    response = client.get("/books")
+    assert response.status_code == 200
 
-        # Check right object is returned
-        assert len(books) == 2
-        for book in books:
-            assert "state" not in book
-        assert books[0].get("id") == '2'
-        assert books[1].get("title") == "The Science of Everything"
+    data = response.get_json()
+    assert "items" in data
+    books = data["items"]
+
+    # Check right object is returned
+    assert len(books) == 2
+    for book in books:
+        assert "state" not in book
+    assert books[0].get("id") == '2'
+    assert books[1].get("title") == "The Science of Everything"
 
  #-------- Tests for GET a single resource ----------------
 
-def test_get_book_returns_specified_book(client):
+def test_get_book_returns_specified_book(mocker, client):
+    # Arrange
+    # Mock the service function in app.py that get_book depends on
+    mock_get_book = mocker.patch('app.find_one_book')
+    mock_get_book.return_value = {
+            "_id": "6855632dd4e66f0d8b052770",
+            "author": "J.D. Salinger",
+            "id": "550e8400-e29b-41d4-a716-446655440004",
+            "links": {
+            "reservations":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reservations",
+            "reviews":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reviews",
+            "self":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004"
+            },
+            "synopsis": "A story about teenage rebellion and alienation.",
+            "title": "The Catcher in the Rye",
+            "state": "active"
+      }
+
+
     # Test GET request using the book ID
-    get_response = client.get("/books/1")
-    assert get_response.status_code == 200
-    assert get_response.content_type == "application/json"
-    returned_book = get_response.get_json()
-    assert returned_book["id"] == "1"
-    assert returned_book["title"] == "The Great Adventure"
+    response = client.get("/books/6855632dd4e66f0d8b052770")
+
+    assert response.status_code == 200
+    assert response.content_type == "application/json"
+    returned_book = response.get_json()
+    assert returned_book["_id"] == "6855632dd4e66f0d8b052770"
+    assert returned_book["title"] == "The Catcher in the Rye"
+    assert "state" not in returned_book
 
 def test_get_book_not_found_returns_404(client):
     # Test GET request using invalid book ID
@@ -296,15 +355,28 @@ def test_invalid_urls_return_404(client):
     assert response.content_type == "application/json"
     assert "404 Not Found" in response.get_json()["error"]
 
-def test_book_database_is_initialized_for_specific_book_route(client):
-    with patch("app.books", None):
-        response = client.get("/books/1")
-        assert response.status_code == 500
-        assert "Book collection not initialized" in response.get_json()["error"]
+def test_get_book_returns_404_if_state_equals_deleted(mocker, client):
+    # Mock the service function in app.py that get_book depends on
+    mock_get_book = mocker.patch('app.find_one_book')
+    mock_get_book.return_value = {
+            "_id": "6855632dd4e66f0d8b052770",
+            "author": "J.D. Salinger",
+            "id": "550e8400-e29b-41d4-a716-446655440004",
+            "links": {
+            "reservations":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reservations",
+            "reviews":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reviews",
+            "self":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004"
+            },
+            "synopsis": "A story about teenage rebellion and alienation.",
+            "title": "The Catcher in the Rye",
+            "state": "deleted"
+      }
+    # Test GET request using the book ID
+    response = client.get("/books/6855632dd4e66f0d8b052770")
 
-def test_get_book_returns_404_if_state_equals_deleted(client):
-    book_id = "3"
-    response = client.get(f"/books/{book_id}")
     assert response.status_code == 404
     assert response.content_type == "application/json"
     assert "Book not found" in response.get_json()["error"]
@@ -520,9 +592,30 @@ def test_append_host_to_links_in_get(client):
         assert book["links"]["reviews"].startswith("http://localhost")
         assert book["links"]["self"].endswith(f"books/{new_book_id}")
 
-def test_append_host_to_links_in_get_book(client):
+def test_append_host_to_links_in_get_book(mocker, client):
 
-    response = client.get("/books/1")
+    # Mock the service function in app.py that get_book depends on
+    mock_get_book = mocker.patch('app.find_one_book')
+    mock_get_book.return_value = {
+            "_id": "6855632dd4e66f0d8b052770",
+            "author": "J.D. Salinger",
+            "id": "550e8400-e29b-41d4-a716-446655440004",
+            "links": {
+            "reservations":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reservations",
+            "reviews":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reviews",
+            "self":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004"
+            },
+            "synopsis": "A story about teenage rebellion and alienation.",
+            "title": "The Catcher in the Rye",
+            "state": "active"
+      }
+
+
+    # Test GET request using the book ID
+    response = client.get("/books/6855632dd4e66f0d8b052770")
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/json"
@@ -538,7 +631,7 @@ def test_append_host_to_links_in_get_book(client):
     self_link = links.get("self")
     assert self_link is not None, "'links' object must contain a 'self' link"
 
-    expected_link_start = "http://localhost"
+    expected_link_start = "http://127.0.0.1:5000"
     assert self_link.startswith(expected_link_start), \
         f"Link should start with the test server's hostname '{expected_link_start}'"
 
