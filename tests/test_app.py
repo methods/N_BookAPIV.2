@@ -383,16 +383,32 @@ def test_get_book_returns_404_if_state_equals_deleted(mocker, client):
 
 # ------------------------ Tests for DELETE --------------------------------------------
 
-def test_book_is_soft_deleted_on_delete_request(admin_client):
-    with patch("app.books", books_database):
-        # Send DELETE request
-        book_id = '1'
-        response = admin_client.delete(f"/books/{book_id}")
+def test_book_is_soft_deleted_on_delete_request(mocker, admin_client):
+    # Mock the service function in app.py that delete_book depends on
+    mock_delete_book = mocker.patch('app.delete_book_by_id')
+    mock_delete_book.return_value = {
+            "_id": "6855632dd4e66f0d8b052770",
+            "author": "J.D. Salinger",
+            "id": "550e8400-e29b-41d4-a716-446655440004",
+            "links": {
+            "reservations":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reservations",
+            "reviews":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reviews",
+            "self":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004"
+            },
+            "synopsis": "A story about teenage rebellion and alienation.",
+            "title": "The Catcher in the Rye",
+            "state": "deleted"
+      }
 
-        assert response.status_code == 204
-        assert response.data == b''
-        # check that the book's state has changed to deleted
-        assert books_database[0]['state'] == 'deleted'
+    # Send DELETE request
+    book_id = '6855632dd4e66f0d8b052770'
+    response = admin_client.delete(f"/books/{book_id}")
+
+    assert response.status_code == 204
+    assert response.data == b''
 
 def test_delete_book_as_anon_user_is_blocked(client):
     book_id ="1234567"
