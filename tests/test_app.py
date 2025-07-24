@@ -385,7 +385,7 @@ def test_get_book_returns_404_if_state_equals_deleted(mocker, client):
 
 def test_book_is_soft_deleted_on_delete_request(mocker, admin_client):
     # Mock the service function in app.py that delete_book depends on
-    mock_delete_book = mocker.patch('app.delete_book_by_id')
+    mock_delete_book = mocker.patch('database.mongo_helper.delete_book_by_id')
     mock_delete_book.return_value = {
             "_id": "6855632dd4e66f0d8b052770",
             "author": "J.D. Salinger",
