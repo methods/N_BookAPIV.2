@@ -29,7 +29,7 @@ def test_insert_book_to_mongo():
     mock_books_collection.insert_one.assert_called_once_with(new_book)
     assert result == '12345'
 
-def test_find_all_books(mocker):
+def test_find_all_books():
     """
     WHEN find_all_books is called
     THEN it should call find(), convert the cursor to a list, and stringify the IDs.
@@ -65,7 +65,7 @@ def test_find_all_books(mocker):
     assert isinstance(total_count_result, int)
     assert total_count_result == 2
 
-def test_find_one_book(mocker):
+def test_find_one_book():
     """
     GIVEN a mocked find_one that behaves conditionally
     WHEN find_book_by_id is called with a matching ID, it should return the document.
@@ -91,9 +91,7 @@ def test_find_one_book(mocker):
         if query == {'_id': correct_id}:
             # If the query is correct, return the document
             return fake_book_in_db
-        else:
-            # For any other query, simulate "not found"
-            return None
+        return None
 
     # Assign the custom function to the mock's side effect attribute
     mock_books_collection.find_one.side_effect = find_one_side_effect
