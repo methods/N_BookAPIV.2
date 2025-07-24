@@ -187,7 +187,7 @@ def test_delete_book_by_id_soft_deletes_book(mocker):
     result_success = delete_book_by_id(str(correct_id), mock_books_collection)
 
     # Assert that update_one was called with the correct filter and update document.
-    mock_books_collection.update_one.assert_called_with(
+    mock_books_collection.find_one_and_update.assert_called_with(
         {'_id': correct_id},
         {'$set': {'state': 'deleted'}},
         return_document=ReturnDocument.AFTER
@@ -199,11 +199,11 @@ def test_delete_book_by_id_soft_deletes_book(mocker):
 
     # Act and assert for the wrong_id
     result_not_found = delete_book_by_id(str(wrong_id), mock_books_collection)
-    assert result_not_found == None
+    assert result_not_found is None
 
     # Act and assert for an invalid_id
     result_invalid_id = delete_book_by_id(invalid_id, mock_books_collection)
-    assert result_invalid_id == None
+    assert result_invalid_id is None
 
 def test_get_or_create_user_with_existing_user(mocker):
     """
