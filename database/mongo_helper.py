@@ -46,3 +46,9 @@ def find_one_book(book_id: str, books_collection):
         return book
     except InvalidId:
         return None
+
+def delete_book_by_id(book_id: str, books_collection):
+    """
+    Soft deletes a book specified by _id from the MongoDB collection.
+    """
+    pass

@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 import pytest
 from pymongo.errors import ConnectionFailure
 from bson.objectid import ObjectId
-from database.mongo_helper import insert_book_to_mongo, find_all_books, find_one_book
+from database.mongo_helper import insert_book_to_mongo, find_all_books, find_one_book, delete_book_by_id
 from database import user_services
 
 def test_insert_book_to_mongo():
@@ -75,7 +75,7 @@ def test_find_one_book(mocker):
     # Mock the books collection
     mock_books_collection = MagicMock()
 
-    # 2. Define our "fake database" state and the specific IDs we will test.
+    # Define our "fake database" state and the specific IDs we will test
     correct_id = ObjectId()
     wrong_id = ObjectId()
 
@@ -85,11 +85,8 @@ def test_find_one_book(mocker):
         'author': 'Jane Doe'
     }
 
-    # 3. Define the "side effect" function. This is our smart mock logic.
-    #    It must accept the same arguments as the real find_one method.
+    # Define the "side effect" function
     def find_one_side_effect(query):
-        print(f"Mock find_one was called with query: {query}")  # For debugging!
-
         # Check if the query matches what we expect for the correct book
         if query == {'_id': correct_id}:
             # If the query is correct, return the document
@@ -137,6 +134,54 @@ def test_find_book_by_id_with_invalid_id_string_returns_none():
     # Assert
     # The function should catch the Exception and return None
     assert result is None
+
+def test_delete_book_by_id_soft_deletes_book(mocker):
+    """
+    GIVEN a MongoDB ObjectId that should be deleted
+    WHEN delete_book_by_id is called with it
+    THEN it should update the book's state field to 'deleted'
+    and return the modified_count.
+    """
+    # Arrange
+    # Mock the books collection
+    mock_books_collection = MagicMock()
+
+    # Set up sample _id's for testing
+    correct_id = ObjectId()
+    wrong_id = ObjectId()
+    invalid_id = "not-a-valid-mongo-id"
+
+    # Define the "side effect" function for update_one
+    def update_one_side_effect(filter_query, update_doc):
+        # Check if the ID in the filter matches the one we expect to find.
+        if filter_query == {'_id': correct_id}:
+            # If it matches, simulate a successful update.
+            return MagicMock(modified_count=1)
+        # If the ID doesn't match, simulate a "not found" update.
+        return MagicMock(modified_count=0)
+
+    # Assign the side_effect to the mock
+    mock_books_collection.update_one.side_effect = update_one_side_effect
+
+    # Act and assert for the correct_id and update_doc
+    result_success = mock_books_collection.delete_book_by_id(str(correct_id))
+
+    # Assert that the function returned the correct count.
+    assert result_success == 1
+
+    # Assert that update_one was called with the correct filter and update document.
+    mock_books_collection.update_one.assert_called_with(
+        {'_id': correct_id},
+        {'$set': {'state': 'deleted'}}
+    )
+
+    # Act and assert for the wrong_id
+    result_not_found = mock_books_collection.delete_book_by_id(str(wrong_id))
+    assert result_not_found == 0
+
+    # Act and assert for an invalid_id
+    result_invalid_id = mock_books_collection.soft_delete_book_by_id("not-an-id")
+    assert result_invalid_id == 0
 
 def test_get_or_create_user_with_existing_user(mocker):
     """
