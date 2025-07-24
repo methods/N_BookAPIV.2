@@ -162,7 +162,7 @@ def test_delete_book_by_id_soft_deletes_book(mocker):
     mock_books_collection.update_one.side_effect = update_one_side_effect
 
     # Act and assert for the correct_id and update_doc
-    result_success = mock_books_collection.delete_book_by_id(str(correct_id))
+    result_success = delete_book_by_id(str(correct_id), mock_books_collection)
 
     # Assert that the function returned the correct count.
     assert result_success == 1
@@ -174,11 +174,11 @@ def test_delete_book_by_id_soft_deletes_book(mocker):
     )
 
     # Act and assert for the wrong_id
-    result_not_found = mock_books_collection.delete_book_by_id(str(wrong_id))
+    result_not_found = delete_book_by_id(str(wrong_id), mock_books_collection)
     assert result_not_found == 0
 
     # Act and assert for an invalid_id
-    result_invalid_id = mock_books_collection.soft_delete_book_by_id("not-an-id")
+    result_invalid_id = delete_book_by_id(invalid_id, mock_books_collection)
     assert result_invalid_id == 0
 
 def test_get_or_create_user_with_existing_user(mocker):

@@ -49,6 +49,15 @@ def find_one_book(book_id: str, books_collection):
 
 def delete_book_by_id(book_id: str, books_collection):
     """
-    Soft deletes a book specified by _id from the MongoDB collection.
+    Soft deletes a book specified by _id from the MongoDB collection
+    and returns number of documents modified (1 for success, 0 for failure).
     """
-    pass
+    try:
+        obj_id = ObjectId(book_id)
+        result = books_collection.update_one(
+            {'_id': obj_id},
+            {'$set': {'state': 'deleted'}}
+        )
+        return result.modified_count
+    except InvalidId:
+        return 0
