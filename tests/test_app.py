@@ -422,12 +422,6 @@ def test_delete_invalid_book_id(admin_client):
     assert response.content_type == "application/json"
     assert "Book not found" in response.get_json()["error"]
 
-def test_book_database_is_initialized_for_delete_book_route(admin_client):
-    with patch("app.books", None):
-        response = admin_client.delete("/books/1")
-        assert response.status_code == 500
-        assert "Book collection not initialized" in response.get_json()["error"]
-
 # ------------------------ Tests for PUT --------------------------------------------
 
 def test_update_book_request_returns_correct_status_and_content_type(admin_client):

@@ -200,11 +200,9 @@ def delete_book(book_id):
     deleted_book = delete_book_by_id(book_id, books_collection)
 
     if deleted_book:
-        # Now you could log the title of the deleted book, for example
+        # For debugging - may switch to logging later
         print(f"User '{g.user['email']}' deleted book '{deleted_book['title']}'")
 
-        # HTTP 204 No Content is STILL the correct response for a successful DELETE
-        # even if you don't send the body back.
         return "", 204
     else:
         return jsonify({"error": "Book not found"}), 404
