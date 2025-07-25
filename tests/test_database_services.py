@@ -279,11 +279,11 @@ def test_update_book_by_id_updates_db_and_returns_updated_book(mocker):
     assert result_success['title'] == 'The New Book'
 
     # Act and assert for a 'wrong' (but valid) ID
-    result_wrong_id = update_book_by_id(str(wrong_id), fake_new_book_data)
+    result_wrong_id = update_book_by_id(str(wrong_id), fake_new_book_data, mock_books_collection)
     assert result_wrong_id is None
 
     # Act and assert for a malformed ID string
-    result_invalid_id = update_book_by_id("not-a-valid-id", fake_new_book_data)
+    result_invalid_id = update_book_by_id(str(invalid_id), fake_new_book_data, mock_books_collection)
     assert result_invalid_id is None
 
 def test_get_or_create_user_with_existing_user(mocker):
