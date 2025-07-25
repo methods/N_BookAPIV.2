@@ -70,4 +70,3 @@ def delete_book_by_id(book_id: str, books_collection):
         return updated_book
     except InvalidId:
         return None
-
