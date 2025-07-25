@@ -1,12 +1,17 @@
 # pylint: disable=missing-docstring
 from unittest.mock import MagicMock
+from copy import deepcopy
 import pytest
 from pymongo import ReturnDocument
 from pymongo.errors import ConnectionFailure
 from bson.objectid import ObjectId
-from database.mongo_helper import insert_book_to_mongo, find_all_books, find_one_book, delete_book_by_id
+from database.mongo_helper import (
+    insert_book_to_mongo,
+    find_all_books,
+    find_one_book,
+    delete_book_by_id
+)
 from database import user_services
-from copy import deepcopy
 
 def test_insert_book_to_mongo():
     # Setup the mock
@@ -135,7 +140,7 @@ def test_find_book_by_id_with_invalid_id_string_returns_none():
     # The function should catch the Exception and return None
     assert result is None
 
-def test_delete_book_by_id_soft_deletes_book(mocker):
+def test_delete_book_by_id_soft_deletes_book():
     """
     GIVEN a MongoDB ObjectId that should be deleted
     WHEN delete_book_by_id is called with it

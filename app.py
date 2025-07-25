@@ -9,7 +9,12 @@ from flask import Flask, request, jsonify, g
 from werkzeug.exceptions import NotFound
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
-from database.mongo_helper import insert_book_to_mongo, find_all_books, find_one_book, delete_book_by_id
+from database.mongo_helper import (
+    insert_book_to_mongo,
+    find_all_books,
+    find_one_book,
+    delete_book_by_id
+)
 from auth.services import init_oauth
 from auth.views import auth_bp # Imports the blueprint object from the auth module
 from auth.decorators import login_required, roles_required
@@ -204,8 +209,7 @@ def delete_book(book_id):
         print(f"User '{g.user['email']}' deleted book '{deleted_book['title']}'")
 
         return "", 204
-    else:
-        return jsonify({"error": "Book not found"}), 404
+    return jsonify({"error": "Book not found"}), 404
 
 # ----------- PUT section ------------------
 
