@@ -13,7 +13,8 @@ from database.mongo_helper import (
     insert_book_to_mongo,
     find_all_books,
     find_one_book,
-    delete_book_by_id
+    delete_book_by_id,
+    update_book_by_id
 )
 from auth.services import init_oauth
 from auth.views import auth_bp # Imports the blueprint object from the auth module

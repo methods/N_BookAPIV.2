@@ -424,21 +424,40 @@ def test_delete_invalid_book_id(admin_client):
 
 # ------------------------ Tests for PUT --------------------------------------------
 
-def test_update_book_request_returns_correct_status_and_content_type(admin_client):
-    with patch("app.books", books_database):
+def test_update_book_request_returns_correct_status_and_content_type(mocker, admin_client):
+    # Arrange
+    # Set a book_id to be supplied by the client request
+    book_id_to_update = "6855632dd4e66f0d8b052770"
+    # Mock the service function in app.py that update_book depends on
+    mock_update_book_service = mocker.patch('app.update_book_by_id')
+    mock_update_book_service.return_value = {
+        '_id': book_id_to_update,
+        'title': 'The New Title',
+        'author': 'New Author',
+        'synopsis': 'A new synopsis.',
+        'state': 'active'
+      }
 
-        test_book = {
-            "title": "Test Book",
-            "author": "AN Other",
-            "synopsis": "Test Synopsis"
-        }
+    # Fake JSON payload to be supplied by the client request
+    update_payload = {
+        'title': 'The New Title',
+        'author': 'New Author',
+        'synopsis': 'A new synopsis.'
+    }
 
-        # send PUT request
-        response = admin_client.put("/books/1", json=test_book)
+    # Act
+    response = admin_client.put(
+        f"/books/{book_id_to_update}",
+        json=update_payload
+    )
 
-        # Check response status code and content type
-        assert response.status_code == 200
-        assert response.content_type == "application/json"
+    # Assert
+    mock_update_book_service.assert_called_once()
+    assert response.status_code == 200
+    response_data = response.get_json()
+    assert response_data['title'] == 'The New Title'
+    assert response_data['_id'] == book_id_to_update
+    assert 'state' not in response_data
 
 def test_update_book_request_returns_required_fields(admin_client):
     with patch("app.books", books_database):
