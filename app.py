@@ -223,7 +223,6 @@ def update_book(book_id):
     Returns a single dictionary with the updated book's details.
     """
 
-
     # check if request is json
     if not request.is_json:
         return jsonify({"error": "Request must be JSON"}), 415
@@ -240,26 +239,16 @@ def update_book(book_id):
         return {"error": f"Missing required fields: {', '.join(missing_fields)}"}, 400
 
     host = request.host_url
+    book_collection = get_book_collection()
+    updated_book = update_book_by_id(book_id, book_collection, request_body)
 
-    # now that we have a book object that is valid, loop through books
-    for book in books:
-        if book.get("id") == book_id:
-            # update the book values to what is in the request
-            book["title"] = request.json.get("title")
-            book["synopsis"] = request.json.get("synopsis")
-            book["author"] = request.json.get("author")
+    if not updated_book:
+        return jsonify({"error": "Book not found"}), 404
 
-            # Add links exists as paths only
-            book["links"] = {
-                "self": f"/books/{book_id}",
-                "reservations": f"/books/{book_id}/reservations",
-                "reviews": f"/books/{book_id}/reviews"
-            }
-            # make a deepcopy of the modified book
-            book_copy = copy.deepcopy(book)
-            book_with_hostname = append_hostname(book_copy, host)
-            return jsonify(book_with_hostname), 200
-
+    if updated_book.get("state")!="deleted":
+        book_copy = copy.deepcopy(updated_book)
+        book_copy.pop("state", None)
+        return jsonify(append_hostname(book_copy, host)), 200
     return jsonify({"error": "Book not found"}), 404
 
 @app.errorhandler(NotFound)
