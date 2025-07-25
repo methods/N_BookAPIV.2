@@ -83,6 +83,7 @@ def test_find_one_book():
     mock_books_collection = MagicMock()
 
     # Define our "fake database" state and the specific IDs we will test
+
     correct_id = ObjectId()
     wrong_id = ObjectId()
 
@@ -92,8 +93,8 @@ def test_find_one_book():
         'author': 'Jane Doe'
     }
 
-    # Define the "side effect" function
     def find_one_side_effect(query):
+
         # Check if the query matches what we expect for the correct book
         if query == {'_id': correct_id}:
             # If the query is correct, return the document
