@@ -1,5 +1,6 @@
 """Module containing pymongo helper functions."""
 from bson.objectid import ObjectId, InvalidId
+from pymongo import ReturnDocument
 
 def insert_book_to_mongo(new_book, books_collection):
     """Add a new book to the MongoDB collection."""
@@ -44,5 +45,28 @@ def find_one_book(book_id: str, books_collection):
             book['_id'] = str(book['_id'])
 
         return book
+    except InvalidId:
+        return None
+
+def delete_book_by_id(book_id: str, books_collection):
+    """
+    Soft deletes a book specified by _id from the MongoDB collection
+    and returns the updated document if it exists or None otherwise.
+    """
+    try:
+        obj_id = ObjectId(book_id)
+        # Use find_one_and_update to perform the soft delete
+        updated_book = books_collection.find_one_and_update(
+            {'_id': obj_id},
+            {'$set': {'state': 'deleted'}},
+            # This option tells MongoDB to return the document AFTER the update
+            return_document=ReturnDocument.AFTER
+        )
+
+        # Process the _id for JSON serialization before returning
+        if updated_book:
+            updated_book['_id'] = str(updated_book['_id'])
+
+        return updated_book
     except InvalidId:
         return None

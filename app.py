@@ -5,11 +5,16 @@ import copy
 import os
 from urllib.parse import urljoin
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, g
 from werkzeug.exceptions import NotFound
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
-from database.mongo_helper import insert_book_to_mongo, find_all_books, find_one_book
+from database.mongo_helper import (
+    insert_book_to_mongo,
+    find_all_books,
+    find_one_book,
+    delete_book_by_id
+)
 from auth.services import init_oauth
 from auth.views import auth_bp # Imports the blueprint object from the auth module
 from auth.decorators import login_required, roles_required
@@ -195,13 +200,15 @@ def delete_book(book_id):
     """
     Soft delete a book by setting its state to 'deleted' or return error if not found.
     """
-    if not books:
-        return jsonify({"error": "Book collection not initialized"}), 500
+    books_collection = get_book_collection()
 
-    for book in books:
-        if book.get("id") == book_id:
-            book["state"] = "deleted"
-            return "", 204
+    deleted_book = delete_book_by_id(book_id, books_collection)
+
+    if deleted_book:
+        # For debugging - may switch to logging later
+        print(f"User '{g.user['email']}' deleted book '{deleted_book['title']}'")
+
+        return "", 204
     return jsonify({"error": "Book not found"}), 404
 
 # ----------- PUT section ------------------
