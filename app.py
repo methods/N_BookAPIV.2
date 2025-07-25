@@ -222,8 +222,7 @@ def update_book(book_id):
     Update a book by its unique ID using JSON from the request body.
     Returns a single dictionary with the updated book's details.
     """
-    if not books:
-        return jsonify({"error": "Book collection not initialized"}), 500
+
 
     # check if request is json
     if not request.is_json:

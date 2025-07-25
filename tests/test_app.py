@@ -521,19 +521,6 @@ def test_update_book_sent_with_invalid_book_id(admin_client):
         assert response.status_code == 404
         assert "Book not found" in response.get_json()["error"]
 
-def test_book_database_is_initialized_for_update_book_route(admin_client):
-    with patch("app.books", None):
-        test_book = {
-            "title": "Test Book",
-            "author": "AN Other",
-            "synopsis": "Test Synopsis"
-        }
-
-        # Send PUT request
-        response = admin_client.put("/books/1", json=test_book)
-        assert response.status_code == 500
-        assert "Book collection not initialized" in response.get_json()["error"]
-
 def test_update_book_check_request_header_is_json(admin_client):
 
     response = admin_client.put(
