@@ -70,3 +70,10 @@ def delete_book_by_id(book_id: str, books_collection):
         return updated_book
     except InvalidId:
         return None
+
+def update_book_by_id(book_id: str, new_book_data: dict, books_collection):
+    """
+    Updates a book specified by _id from the MongoDB collection
+    and returns the updated document if it exists or None otherwise.
+    """
+    pass
