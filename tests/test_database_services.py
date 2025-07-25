@@ -278,6 +278,14 @@ def test_update_book_by_id_updates_db_and_returns_updated_book(mocker):
     assert result_success['_id'] == str(correct_id) # Also check the ID was stringified
     assert result_success['title'] == 'The New Book'
 
+    # Act and assert for a 'wrong' (but valid) ID
+    result_wrong_id = update_book_by_id(str(wrong_id), fake_new_book_data)
+    assert result_wrong_id is None
+
+    # Act and assert for a malformed ID string
+    result_invalid_id = update_book_by_id("not-a-valid-id", fake_new_book_data)
+    assert result_invalid_id is None
+
 def test_get_or_create_user_with_existing_user(mocker):
     """
     If get_or_create_user_from_oidc is called with an existing user, it should
