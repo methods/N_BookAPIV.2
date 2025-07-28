@@ -467,16 +467,18 @@ def test_update_book_request_returns_correct_status_and_content_type(mocker, adm
     assert "links" in response_data
     assert 'state' not in response_data
 
-def test_update_book_sent_with_invalid_book_id(admin_client):
-    with patch("app.books", books_database):
-        test_book = {
-            "title": "Some title",
-            "author": "Some author",
-            "synopsis": "Some synopsis"
-        }
-        response = admin_client.put("/books/999", json =test_book)
-        assert response.status_code == 404
-        assert "Book not found" in response.get_json()["error"]
+def test_update_book_sent_with_invalid_book_id(mocker, admin_client):
+    # Mock the service function in app.py that update_book depends on
+    mock_update_book_service = mocker.patch('app.update_book_by_id')
+    mock_update_book_service.return_value = None
+    test_book = {
+        "title": "Some title",
+        "author": "Some author",
+        "synopsis": "Some synopsis"
+    }
+    response = admin_client.put("/books/999", json =test_book)
+    assert response.status_code == 404
+    assert "Book not found" in response.get_json()["error"]
 
 def test_update_book_check_request_header_is_json(admin_client):
 

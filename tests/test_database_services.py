@@ -1,4 +1,5 @@
 # pylint: disable=missing-docstring
+import uuid
 from unittest.mock import MagicMock
 from copy import deepcopy
 import pytest
@@ -85,11 +86,10 @@ def test_find_one_book():
 
     # Define our "fake database" state and the specific IDs we will test
 
-    correct_id = ObjectId()
-    wrong_id = ObjectId()
-
+    correct_id = str(uuid.uuid4())
+    wrong_id = str(uuid.uuid4())
     fake_book_in_db = {
-        '_id': correct_id,
+        'id': correct_id,
         'title': 'The Correct Book',
         'author': 'Jane Doe'
     }
@@ -97,7 +97,7 @@ def test_find_one_book():
     def find_one_side_effect(query):
 
         # Check if the query matches what we expect for the correct book
-        if query == {'_id': correct_id}:
+        if query == {'id': correct_id, 'state': {'$ne': 'deleted'}}:
             # If the query is correct, return the document
             return fake_book_in_db
         return None
@@ -106,41 +106,21 @@ def test_find_one_book():
     mock_books_collection.find_one.side_effect = find_one_side_effect
 
     # Act and assert for the correct_id
-    result_success = find_one_book(str(correct_id), mock_books_collection)
+    result_success = find_one_book(correct_id, mock_books_collection)
 
     # Assert that it returned the full document, with the ID correctly stringified
     assert result_success is not None
     assert result_success['title'] == 'The Correct Book'
-    assert result_success['_id'] == str(correct_id)
+    assert result_success['id'] == correct_id
 
     # Act and assert for the wrong_id
-    result_failure = find_one_book(str(wrong_id), mock_books_collection)
+    result_failure = find_one_book(wrong_id, mock_books_collection)
 
     # Assert that it correctly returned None
     assert result_failure is None
 
     # We can also check the total calls to our mock
     assert mock_books_collection.find_one.call_count == 2
-
-def test_find_book_by_id_with_invalid_id_string_returns_none():
-    """
-    GIVEN a string that is not a valid MongoDB ObjectId
-    WHEN find_book_by_id is called with it
-    THEN it should catch the InvalidId exception and return None gracefully.
-    """
-    # Arrange
-    # Mock the books collection
-    mock_books_collection = MagicMock()
-    # A string that will cause `ObjectId()` to raise InvalidId
-    malformed_id_string = "this-is-definitely-not-a-mongo-id"
-
-    # Act
-    # Call the real function with the bad input.
-    result = find_one_book(malformed_id_string, mock_books_collection)
-
-    # Assert
-    # The function should catch the Exception and return None
-    assert result is None
 
 def test_delete_book_by_id_soft_deletes_book():
     """
