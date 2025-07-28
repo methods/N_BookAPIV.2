@@ -435,6 +435,11 @@ def test_update_book_request_returns_correct_status_and_content_type(mocker, adm
         'title': 'The New Title',
         'author': 'New Author',
         'synopsis': 'A new synopsis.',
+        "links": {
+            "self": "/books/550e8400-e29b-41d4-a716-446655440001",
+            "reservations": "/books/550e8400-e29b-41d4-a716-446655440001/reservations",
+            "reviews": "/books/550e8400-e29b-41d4-a716-446655440001/reviews"
+        },
         'state': 'active'
       }
 
@@ -457,58 +462,10 @@ def test_update_book_request_returns_correct_status_and_content_type(mocker, adm
     response_data = response.get_json()
     assert response_data['title'] == 'The New Title'
     assert response_data['_id'] == book_id_to_update
+    assert response_data['author'] == 'New Author'
+    assert response_data['synopsis'] == 'A new synopsis.'
+    assert "links" in response_data
     assert 'state' not in response_data
-
-def test_update_book_request_returns_required_fields(admin_client):
-    with patch("app.books", books_database):
-        test_book = {
-            "title": "Test Book",
-            "author": "AN Other",
-            "synopsis": "Test Synopsis"
-        }
-
-        # Send PUT request
-        response = admin_client.put("/books/1", json=test_book)
-        response_data = response.get_json()
-
-        # Check that required fields are in the response data
-        required_fields = ["title", "synopsis", "author", "links"]
-        for field in required_fields:
-            assert field in response_data, f"{field} not in response_data"
-
-def test_update_book_replaces_whole_object(admin_client):
-    book_to_be_changed = {
-        "id": "1",
-        "title": "Original Title",
-        "author": "Original Author",
-        "synopsis": "Original Synopsis",
-        "links": {
-                "self": "link to be changed",
-                "reservations": "link to be changed",
-                "reviews": "link to be changed"
-        }
-    }
-    # Patch the books list with just this book (no links)
-    with patch("app.books", [book_to_be_changed]):
-        updated_data = {
-            "title": "Updated Title",
-            "author": "Updated Author",
-            "synopsis": "Updated Synopsis"
-        }
-
-        response = admin_client.put("/books/1", json=updated_data)
-        assert response.status_code == 200
-
-        data = response.get_json()
-        assert "links" in data
-        assert "/books/1" in data["links"]["self"]
-        assert "/books/1/reservations" in data["links"]["reservations"]
-        assert "/books/1/reviews" in data["links"]["reviews"]
-
-        # Verify other fields were updated
-        assert data["title"] == "Updated Title"
-        assert data["author"] == "Updated Author"
-        assert data["synopsis"] == "Updated Synopsis"
 
 def test_update_book_sent_with_invalid_book_id(admin_client):
     with patch("app.books", books_database):
@@ -655,21 +612,45 @@ def test_append_host_to_links_in_get_book(mocker, client):
     assert self_link.endswith(expected_path), \
         f"Link should end with the resource path '{expected_path}'"
 
-def test_append_host_to_links_in_put(admin_client):
+def test_append_host_to_links_in_put(mocker, admin_client):
 
-    test_book = {
-        "title": "Test Book",
-        "author": "AN Other",
-        "synopsis": "Test Synopsis"
+    # Arrange
+    # Set a book_id to be supplied by the client request
+    book_id_to_update = "6855632dd4e66f0d8b052770"
+    # Mock the service function in app.py that update_book depends on
+    mock_update_book_service = mocker.patch('app.update_book_by_id')
+    mock_update_book_service.return_value = {
+        '_id': book_id_to_update,
+        'title': 'The New Title',
+        'author': 'New Author',
+        'synopsis': 'A new synopsis.',
+        "links": {
+            "self": "/books/6855632dd4e66f0d8b052770",
+            "reservations": "/books/6855632dd4e66f0d8b052770/reservations",
+            "reviews": "/books/6855632dd4e66f0d8b052770/reviews"
+        },
+        'state': 'active'
+      }
+
+    # Fake JSON payload to be supplied by the client request
+    update_payload = {
+        'title': 'The New Title',
+        'author': 'New Author',
+        'synopsis': 'A new synopsis.'
     }
-    response = admin_client.put("/books/1", json = test_book)
+
+    # Act
+    response = admin_client.put(
+        f"/books/{book_id_to_update}",
+        json=update_payload
+    )
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "application/json"
 
     # Get the response data, the ID and links
     response_data = response.get_json()
-    book_id = response_data.get("id")
+    book_id = response_data.get("_id")
     links = response_data.get("links")
 
     assert book_id is not None, "Response JSON must contain an 'id'"
