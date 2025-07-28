@@ -19,7 +19,6 @@ from database.mongo_helper import (
 from auth.services import init_oauth
 from auth.views import auth_bp # Imports the blueprint object from the auth module
 from auth.decorators import login_required, roles_required
-from data import books
 
 app = Flask(__name__)
 
