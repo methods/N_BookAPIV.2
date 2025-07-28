@@ -133,3 +133,53 @@ def test_get_all_books_gets_from_mongodb(admin_client):
     # Assert: Check the title of one of the inserted books
     book_titles = [book['title'] for book in response_data['items']]
     assert "The Midnight Library" in book_titles
+
+def test_update_soft_deleted_book_returns_404(mongo_client, admin_client):
+    """
+    GIVEN a book exists in the DB but is marked as 'deleted'
+    WHEN a PUT request is made to update it
+    THEN the API should return a 404 Not Found and the book should NOT be updated.
+    """
+    db = mongo_client['test_database']
+    collection = db['test_books']
+    # Arrange
+    # Insert a soft-deleted book into the test database.
+    soft_deleted_book = {
+            "author": "A Deleted Author",
+            "id": "550e8400-e29b-41d4-a716-446655440004",
+            "links": {
+            "reservations":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reservations",
+            "reviews":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004/reviews",
+            "self":
+                "http://127.0.0.1:5000/books/550e8400-e29b-41d4-a716-446655440004"
+            },
+            "synopsis": "A book that was deleted.",
+            "title": "The Deleted Book",
+            "state": "deleted"
+      }
+    result = collection.insert_one(soft_deleted_book)
+    print(result)
+    book_id = str(result.inserted_id)
+    print(book_id)
+
+    update_payload = {
+        'title': 'Resurrected book',
+        'synopsis': 'Trying to resurrect this book',
+        'author': 'Book Resurrector'
+    }
+
+    test_response = admin_client.get("/books/" + book_id)
+    print(test_response)
+    # Act
+    response = admin_client.put(f"/books/{book_id}", json=update_payload)
+
+    # Assert the API correctly reports that the resource was not found.
+    assert response.status_code == 404
+
+    # Assert that the database state was NOT changed.
+
+    book_in_db = collection.find_one({'_id': ObjectId(book_id)})
+    assert book_in_db['title'] == 'The Deleted Book'  # The title was NOT updated
+    assert book_in_db['state'] == 'deleted'

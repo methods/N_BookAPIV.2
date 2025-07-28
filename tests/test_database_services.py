@@ -244,7 +244,7 @@ def test_update_book_by_id_updates_db_and_returns_updated_book(mocker):
     # Define the "side effect" function for find_one_and_update
     def find_one_and_update_side_effect(filter_query, update_doc, return_document):
         # Check if the ID in the filter matches the one we expect to find.
-        if filter_query == {'_id': correct_id}:
+        if filter_query == {'_id': correct_id, 'state': {'$ne': 'deleted'}}:
             # Simulate the update operation
             changes = update_doc.get('$set', {})
 
@@ -270,7 +270,7 @@ def test_update_book_by_id_updates_db_and_returns_updated_book(mocker):
 
     # Assert that update_one was called with the correct filter and update document.
     mock_books_collection.find_one_and_update.assert_called_with(
-        {'_id': correct_id},
+        {'_id': correct_id, 'state': {'$ne': 'deleted'}},
         {'$set': fake_new_book_data},
         return_document=ReturnDocument.AFTER
     )

@@ -78,9 +78,16 @@ def update_book_by_id(book_id: str, new_book_data: dict, books_collection):
     """
     try:
         obj_id = ObjectId(book_id)
+
+        # Filter for deleted books
+        query_filter = {
+            '_id': obj_id,
+            'state': {'$ne': 'deleted'}
+        }
+
         # Use find_one_and_update to perform the update
         updated_book = books_collection.find_one_and_update(
-            {'_id': obj_id},
+            query_filter,
             {'$set': new_book_data},
             # This option tells MongoDB to return the document AFTER the update
             return_document=ReturnDocument.AFTER

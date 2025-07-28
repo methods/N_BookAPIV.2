@@ -231,7 +231,7 @@ def update_book(book_id):
     request_body = request.get_json()
     if not isinstance(request_body, dict):
         return jsonify({"error": "JSON payload must be a dictionary"}), 400
-
+    print(request_body)
     # check request body contains required fields
     required_fields = ["title", "synopsis", "author"]
     missing_fields = [field for field in required_fields if field not in request_body]
@@ -239,13 +239,11 @@ def update_book(book_id):
         return {"error": f"Missing required fields: {', '.join(missing_fields)}"}, 400
 
     host = request.host_url
+
     book_collection = get_book_collection()
-    updated_book = update_book_by_id(book_id, book_collection, request_body)
+    updated_book = update_book_by_id(book_id, request_body, book_collection)
 
-    if not updated_book:
-        return jsonify({"error": "Book not found"}), 404
-
-    if updated_book.get("state")!="deleted":
+    if updated_book:
         book_copy = copy.deepcopy(updated_book)
         book_copy.pop("state", None)
         return jsonify(append_hostname(book_copy, host)), 200
