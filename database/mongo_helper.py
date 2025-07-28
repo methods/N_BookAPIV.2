@@ -33,20 +33,25 @@ def find_one_book(book_id: str, books_collection):
     """
     Returns a book specified by _id from the MongoDB collection.
     """
-    try:
-        # Convert the string ID to a BSON ObjectId
-        obj_id = ObjectId(book_id)
 
-        # Use mongoDB built in find_one method
-        book = books_collection.find_one({'_id': obj_id})
+    # Convert the string ID to a BSON ObjectId
+    # obj_id = ObjectId(book_id)
 
-        if book:
-            # Process the document appropriately
-            book['_id'] = str(book['_id'])
+    # Use mongoDB built in find_one method
 
+    query_filter = {
+        'id': book_id,
+        'state': {'$ne': 'deleted'}
+    }
+
+    book = books_collection.find_one(query_filter)
+
+    if book:
+        # Process the document appropriately
+        book.pop('_id', None)
         return book
-    except InvalidId:
-        return None
+    return None
+
 
 def delete_book_by_id(book_id: str, books_collection):
     """
