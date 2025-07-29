@@ -169,7 +169,6 @@ def test_update_soft_deleted_book_returns_404(mongo_client, admin_client):
     }
 
     test_response = admin_client.get("/books/" + book_id)
-    print(test_response)
     # Act
     response = admin_client.put(f"/books/{book_id}", json=update_payload)
 
