@@ -160,9 +160,7 @@ def test_update_soft_deleted_book_returns_404(mongo_client, admin_client):
             "state": "deleted"
       }
     result = collection.insert_one(soft_deleted_book)
-    print(result)
     book_id = str(result.inserted_id)
-    print(book_id)
 
     update_payload = {
         'title': 'Resurrected book',
