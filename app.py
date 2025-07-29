@@ -201,7 +201,6 @@ def delete_book(book_id):
     Soft delete a book by setting its state to 'deleted' or return error if not found.
     """
     books_collection = get_book_collection()
-
     deleted_book = delete_book_by_id(book_id, books_collection)
 
     if deleted_book:

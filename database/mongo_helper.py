@@ -34,7 +34,6 @@ def find_one_book(book_id: str, books_collection):
     """
 
     # Convert the string ID to a BSON ObjectId
-    # obj_id = ObjectId(book_id)
 
     # Use mongoDB built in find_one method
 
@@ -51,14 +50,12 @@ def find_one_book(book_id: str, books_collection):
         return book
     return None
 
-
 def delete_book_by_id(book_id: str, books_collection):
     """
     Soft deletes a book specified by _id from the MongoDB collection
     and returns the updated document if it exists or None otherwise.
     """
 
-    # obj_id = ObjectId(book_id)
     # Use find_one_and_update to perform the soft delete
     updated_book = books_collection.find_one_and_update(
         {'id': book_id},
