@@ -13,12 +13,12 @@ from database.mongo_helper import (
     insert_book_to_mongo,
     find_all_books,
     find_one_book,
-    delete_book_by_id
+    delete_book_by_id,
+    update_book_by_id
 )
 from auth.services import init_oauth
 from auth.views import auth_bp # Imports the blueprint object from the auth module
 from auth.decorators import login_required, roles_required
-from data import books
 
 app = Flask(__name__)
 
@@ -201,7 +201,6 @@ def delete_book(book_id):
     Soft delete a book by setting its state to 'deleted' or return error if not found.
     """
     books_collection = get_book_collection()
-
     deleted_book = delete_book_by_id(book_id, books_collection)
 
     if deleted_book:
@@ -221,8 +220,6 @@ def update_book(book_id):
     Update a book by its unique ID using JSON from the request body.
     Returns a single dictionary with the updated book's details.
     """
-    if not books:
-        return jsonify({"error": "Book collection not initialized"}), 500
 
     # check if request is json
     if not request.is_json:
@@ -232,7 +229,7 @@ def update_book(book_id):
     request_body = request.get_json()
     if not isinstance(request_body, dict):
         return jsonify({"error": "JSON payload must be a dictionary"}), 400
-
+    print(request_body)
     # check request body contains required fields
     required_fields = ["title", "synopsis", "author"]
     missing_fields = [field for field in required_fields if field not in request_body]
@@ -241,25 +238,13 @@ def update_book(book_id):
 
     host = request.host_url
 
-    # now that we have a book object that is valid, loop through books
-    for book in books:
-        if book.get("id") == book_id:
-            # update the book values to what is in the request
-            book["title"] = request.json.get("title")
-            book["synopsis"] = request.json.get("synopsis")
-            book["author"] = request.json.get("author")
+    book_collection = get_book_collection()
+    updated_book = update_book_by_id(book_id, request_body, book_collection)
 
-            # Add links exists as paths only
-            book["links"] = {
-                "self": f"/books/{book_id}",
-                "reservations": f"/books/{book_id}/reservations",
-                "reviews": f"/books/{book_id}/reviews"
-            }
-            # make a deepcopy of the modified book
-            book_copy = copy.deepcopy(book)
-            book_with_hostname = append_hostname(book_copy, host)
-            return jsonify(book_with_hostname), 200
-
+    if updated_book:
+        book_copy = copy.deepcopy(updated_book)
+        book_copy.pop("state", None)
+        return jsonify(append_hostname(book_copy, host)), 200
     return jsonify({"error": "Book not found"}), 404
 
 @app.errorhandler(NotFound)
