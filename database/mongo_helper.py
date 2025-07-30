@@ -66,7 +66,7 @@ def delete_book_by_id(book_id: str, books_collection):
 
     # Process the _id for JSON serialization before returning
     if updated_book:
-        updated_book['_id'] = str(updated_book['_id'])
+        updated_book.pop('_id', None)
         return updated_book
     return None
 
