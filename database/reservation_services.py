@@ -2,18 +2,52 @@
 from datetime import datetime, timezone
 import uuid
 from bson.objectid import ObjectId
+from pymongo import MongoClient
+from pymongo.errors import ConnectionFailure
 from . import mongo_helper
+from app import app
+
 
 class BookNotAvailableForReservationError(Exception):
     pass
 
 def get_reservations_collection():
-    pass
+    """Connect to the database and return the reservations collection"""
+    try:
+        client = MongoClient(app.config['MONGO_URI'], serverSelectionTimeoutMS=5000)
+        db = client[app.config['DB_NAME']]
+        reservations_collection = db.reservations
+        return reservations_collection
+    except ConnectionFailure as e:
+        # Handle the connection error and return error information
+        raise ConnectionFailure(f'Could not connect to MongoDB: {str(e)}') from e
 
 def create_reservation_for_book(book_id, reservation_data, books_collection):
     """
     Creates a reservation record for a book
     """
+    # Check that the book to be reserved is in the collection and not deleted
     book_to_reserve = mongo_helper.find_one_book(book_id, books_collection)
-    print(book_to_reserve)
-    return
+    if book_to_reserve is None:
+        raise BookNotAvailableForReservationError(
+            f"Book with ID {book_id} is not available for reservation."
+        )
+
+    # Prepare the collection to be modified
+    reservations_collection = get_reservations_collection()
+    new_reservation_doc = {
+        'id': str(uuid.uuid4()),
+        'book_id': book_id, # Store the ObjectId to link to the book
+        'forenames': reservation_data['forenames'],
+        'surname': reservation_data['surname'],
+        'state': 'reserved', # Correctly set the default state
+        'reservedAt': datetime.now(timezone.utc)
+    }
+
+    # Add the new reservation to the collection
+    result = reservations_collection.insert_one(new_reservation_doc)
+    new_reservation_doc['_id'] = result.inserted_id
+    new_reservation_doc.pop('_id', None)  # Hide the internal _id
+    new_reservation_doc['reservedAt'] = new_reservation_doc['reservedAt'].isoformat()
+
+    return new_reservation_doc

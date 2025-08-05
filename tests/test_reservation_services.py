@@ -54,7 +54,7 @@ def test_create_reservation_for_book(mocker):
     mock_reservations_collection.insert_one.assert_called_once()
 
     # Check the inserted document
-    inserted_doc = mock_reservations_collection.insert_one.call_args[0][0][0]
+    inserted_doc = mock_reservations_collection.insert_one.call_args[0][0]
     assert inserted_doc['book_id'] == fake_book_id
     assert inserted_doc['forenames'] == 'John'
     assert inserted_doc['state'] == 'reserved'
