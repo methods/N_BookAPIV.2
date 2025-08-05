@@ -1,6 +1,8 @@
 # pylint: disable=missing-docstring
 import os
-from unittest.mock import patch
+import uuid
+from datetime import datetime, timezone
+from unittest.mock import patch, MagicMock
 from bson.objectid import ObjectId
 from pymongo.errors import ServerSelectionTimeoutError
 import pytest
@@ -170,6 +172,61 @@ def test_500_response_is_json(admin_client):
 
         assert response.content_type == "application/json"
         assert "An unexpected error occurred" in response.get_json()["error"]
+
+def test_add_reservation_view_on_success(mocker, client, admin_client):
+    """
+    GIVEN a logged-in user and a valid payload
+    WHEN a POST request is made to create a reservation for a valid book
+    THEN it should call the reservation service and return a 201 Created response.
+    """
+    # Arrange
+    # Mock data for the book and reservation data
+    fake_book_uuid = "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+    reservation_payload = {'forenames': 'Testy', 'surname': 'McTestface'}
+    mock_books_collection = MagicMock
+
+    # This is the fake, processed document we expect our service to return.
+    fake_created_reservation = {
+        'id': str(uuid.uuid4()),
+        'book_id': fake_book_uuid,
+        'forenames': 'Testy',
+        'surname': 'McTestface',
+        'state': 'reserved',
+        'reservedAt': datetime.now(timezone.utc).isoformat()
+    }
+
+    # Mock the service function that the view depends on.
+    mock_create_reservation = mocker.patch(
+        'app.reservation_services.create_reservation_for_book'  # Adjust path as needed
+    )
+    mock_create_reservation.return_value = fake_created_reservation
+
+    # Act
+    # Use your authenticated client to make the request. A 'viewer' is fine.
+    response = admin_client.post(
+        f'/books/{fake_book_uuid}/reservations',
+        json=reservation_payload
+    )
+
+    # Assert
+    # Was the service called with the correct arguments from the URL and payload?
+    mock_create_reservation.assert_called_once_with(
+        fake_book_uuid,
+        reservation_payload,
+        mock_books_collection
+    )
+
+    # Check for correct HTTP status code
+    assert response.status_code == 201
+
+    # Check for the correct JSON body
+    response_data = response.get_json()
+    assert response_data['forenames'] == 'Testy'
+    assert response_data['id'] == fake_created_reservation['id']
+
+    # 4. (Optional but good) Did it set the 'Location' header?
+    assert 'Location' in response.headers
+    assert fake_created_reservation['id'] in response.headers['Location']
 
 # ------------------------ Tests for GET --------------------------------------------
 def test_get_all_books_returns_all_books(client):

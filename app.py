@@ -16,6 +16,7 @@ from database.mongo_helper import (
     delete_book_by_id,
     update_book_by_id
 )
+from database import reservation_services
 from auth.services import init_oauth
 from auth.views import auth_bp # Imports the blueprint object from the auth module
 from auth.decorators import login_required, roles_required
@@ -115,6 +116,15 @@ def add_book():
 
     return jsonify(book_for_response), 201
 
+@app.route('/books/<book_id>/reservations', methods=['POST'])
+@login_required
+def add_reservation(book_id):
+    """ Function to add a new reservation to the reservations collection. """
+    # 1. Validate the incoming JSON payload (is_json, required fields, etc.)
+    # 2. Call the reservation service to do the real work
+    # 3. Handle the success case (return 201 Created)
+    # 4. Handle the failure cases (e.g., Book not found, returns 404)
+    pass # To be implemented
 
 # ----------- GET section ------------------
 @app.route("/books", methods=["GET"])

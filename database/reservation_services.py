@@ -5,14 +5,13 @@ from bson.objectid import ObjectId
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 from . import mongo_helper
-from app import app
-
 
 class BookNotAvailableForReservationError(Exception):
     pass
 
 def get_reservations_collection():
     """Connect to the database and return the reservations collection"""
+    from app import app # pylint: disable=import-outside-toplevel
     try:
         client = MongoClient(app.config['MONGO_URI'], serverSelectionTimeoutMS=5000)
         db = client[app.config['DB_NAME']]
