@@ -4,6 +4,8 @@ from unittest.mock import MagicMock
 import pytest
 from database import reservation_services
 from database.reservation_services import BookNotAvailableForReservationError
+from pymongo.errors import ConnectionFailure
+from app import app
 
 def test_create_reservation_for_book(mocker):
     """
@@ -106,3 +108,74 @@ def test_create_reservation_for_non_existent_book_raises_error(mocker):
 
     # Assert that no reservation was created in the failure case.
     mock_reservations_collection.insert_one.assert_not_called()
+
+def test_get_reservations_collection_on_success(mocker, monkeypatch):
+    """
+    UNIT TEST:
+    GIVEN a successful connection to MongoDB
+    WHEN get_reservations_collection is called
+    THEN it should use the app config to return the correct collection object.
+    """
+    # ARRANGE
+    # 1. Use monkeypatch to temporarily set the config values on the REAL app object.
+    monkeypatch.setitem(app.config, 'MONGO_URI', 'mongodb://fake-host:27017/')
+    monkeypatch.setitem(app.config, 'DB_NAME', 'fake_db_name')
+
+    # 2. Mock the entire MongoClient class.
+    mock_client_instance = MagicMock()
+    mock_mongo_client_class = mocker.patch('database.reservation_services.MongoClient')
+    mock_mongo_client_class.return_value = mock_client_instance
+
+    # 3. Create a fake database object and a fake collection object.
+    mock_db_object = MagicMock()
+    expected_collection_object = MagicMock()
+
+    # 4. Configure the mock client to return the fake DB when accessed by key.
+    mock_client_instance.__getitem__.return_value = mock_db_object
+    # 5. Configure the fake DB to return the fake collection when 'reservations' is accessed.
+    mock_db_object.reservations = expected_collection_object
+
+    # ACT
+    actual_collection = reservation_services.get_reservations_collection()
+
+    # ASSERT
+    # 1. Was MongoClient called with the correct URI from our fake app config?
+    mock_mongo_client_class.assert_called_once_with(
+        'mongodb://fake-host:27017/',
+        serverSelectionTimeoutMS=5000
+    )
+
+    # 2. Was the database selected using the correct name from our fake app config?
+    mock_client_instance.__getitem__.assert_called_once_with('fake_db_name')
+
+    # 3. Did the function return the specific collection object we expected?
+    assert actual_collection == expected_collection_object
+
+
+def test_get_reservations_collection_on_failure(mocker, monkeypatch):
+    """
+    UNIT TEST:
+    GIVEN the MongoDB connection fails
+    WHEN get_reservations_collection is called
+    THEN it should raise a ConnectionFailure exception.
+    """
+    # ARRANGE
+    # 1. Use monkeypatch to temporarily set the config values on the REAL app object.
+    monkeypatch.setitem(app.config, 'MONGO_URI', 'mongodb://fake-host:27017/')
+    monkeypatch.setitem(app.config, 'DB_NAME', 'fake_db_name')
+
+    # 2. Mock the MongoClient class to *raise an exception* when it's initialized.
+    #    We use 'side_effect' for this.
+    mock_mongo_client_class = mocker.patch('database.reservation_services.MongoClient')
+    mock_mongo_client_class.side_effect = ConnectionFailure("Could not connect to server.")
+
+    # ACT & ASSERT
+    # Use pytest.raises to assert that the expected exception was thrown.
+    with pytest.raises(ConnectionFailure) as exc_info:
+        reservation_services.get_reservations_collection()
+
+    # (Optional but good) Check that your custom error message is in the exception.
+    assert "Could not connect to MongoDB" in str(exc_info.value)
+
+    # We can also assert that an attempt was made to connect.
+    mock_mongo_client_class.assert_called_once()
