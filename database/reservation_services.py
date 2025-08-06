@@ -21,7 +21,7 @@ def get_reservations_collection():
         # Handle the connection error and return error information
         raise ConnectionFailure(f'Could not connect to MongoDB: {str(e)}') from e
 
-def create_reservation_for_book(book_id, reservation_data, books_collection):
+def create_reservation_for_book(book_id, user: dict, books_collection):
     """
     Creates a reservation record for a book
     """
@@ -32,13 +32,27 @@ def create_reservation_for_book(book_id, reservation_data, books_collection):
             f"Book with ID {book_id} is not available for reservation."
         )
 
+    # Parse user data for the new reservation
+    forename = user.get('given_name')
+    surname = user.get('family_name')
+    # Some users may have only a 'name' field
+    if not forename and user.get('name'):
+        name_parts = user['name'].split(' ', 1)
+        forename = name_parts[0]
+        surname = name_parts[1] if len(name_parts) > 1 else ''
+    # Some users may only have an email
+    if not forename and not surname:
+        forename = user.get('email', 'Unknown User') # Fallback if even email is missing
+        surname = '(No name provided)'
+
     # Prepare the collection to be modified
     reservations_collection = get_reservations_collection()
     new_reservation_doc = {
         'id': str(uuid.uuid4()),
         'book_id': book_id, # Store the ObjectId to link to the book
-        'forenames': reservation_data['forenames'],
-        'surname': reservation_data['surname'],
+        'user_id': user['_id'],
+        'forenames': forename,
+        'surname': surname,
         'state': 'reserved', # Correctly set the default state
         'reservedAt': datetime.now(timezone.utc)
     }
