@@ -2,18 +2,19 @@
 from datetime import datetime, timezone
 import uuid
 import copy
-from ssl import create_default_context
-
-from bson.objectid import ObjectId
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 from . import mongo_helper
 
 class BookNotAvailableForReservationError(Exception):
-    pass
+    """
+    Exception raised when a reservation has not been available for book
+    """
 
 def get_reservations_collection():
-    """Connect to the database and return the reservations collection"""
+    """
+    Connect to the database and return the reservations collection
+    """
     from app import app # pylint: disable=import-outside-toplevel
     try:
         client = MongoClient(app.config['MONGO_URI'], serverSelectionTimeoutMS=5000)

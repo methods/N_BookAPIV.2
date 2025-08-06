@@ -2,11 +2,11 @@
 import os
 import uuid
 from datetime import datetime, timezone
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch
 from bson.objectid import ObjectId
 from pymongo.errors import ServerSelectionTimeoutError
-from database.reservation_services import BookNotAvailableForReservationError
 import pytest
+from database.reservation_services import BookNotAvailableForReservationError
 from app import app, get_book_collection
 
 # Option 1: Rename the fixture to something unique (which I've used)
@@ -202,7 +202,7 @@ def test_500_response_is_json(admin_client):
         assert response.content_type == "application/json"
         assert "An unexpected error occurred" in response.get_json()["error"]
 
-def test_add_reservation_view_on_success(mocker, client, viewer_only_client):
+def test_add_reservation_view_on_success(mocker, viewer_only_client):
     """
     GIVEN a logged-in user and a valid payload
     WHEN a POST request is made to create a reservation for a valid book
@@ -211,7 +211,6 @@ def test_add_reservation_view_on_success(mocker, client, viewer_only_client):
     # Arrange
     # Mock data for the book and reservation data
     fake_book_uuid = "a1b2c3d4-e5f6-7890-1234-567890abcdef"
-    mock_books_collection = MagicMock
 
     # This is the fake, processed document we expect our service to return.
     fake_created_reservation = {
@@ -272,7 +271,7 @@ def test_add_reservation_view_for_invalid_book_returns_404(mocker, viewer_only_c
     non_existent_book_uuid = "a1b2c3d4-e5f6-7890-ffffffffffff"
 
     # 2. Mock the service function to simulate the failure.
-    #    Instead of returning a value, we'll use 'side_effect' to make it raise our custom exception.
+    #    Instead of returning a value, use 'side_effect' to make it raise our custom exception.
     error_message = f"Book with ID {non_existent_book_uuid} is not available for reservation."
     mock_create_reservation = mocker.patch(
         'app.reservation_services.create_reservation_for_book'  # Adjust path as needed

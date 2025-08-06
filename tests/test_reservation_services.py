@@ -1,11 +1,11 @@
 """ Unit tests for reservation services """
 import uuid
-from unittest.mock import MagicMock, ANY
+from unittest.mock import MagicMock
 from bson.objectid import ObjectId
 import pytest
+from pymongo.errors import ConnectionFailure
 from database import reservation_services
 from database.reservation_services import BookNotAvailableForReservationError
-from pymongo.errors import ConnectionFailure
 from app import app
 
 def test_create_reservation_for_book(mocker):
@@ -45,7 +45,9 @@ def test_create_reservation_for_book(mocker):
 
     # Mock the return value from the fake reservations collection
     fake_new_reservation_id = uuid.uuid4()
-    mock_reservations_collection.insert_one.return_value = MagicMock(inserted_id=fake_new_reservation_id)
+    mock_reservations_collection.insert_one.return_value = MagicMock(
+        inserted_id=fake_new_reservation_id
+    )
 
     # Act
     # Call the create_reservation helper function
@@ -195,3 +197,83 @@ def test_get_reservations_collection_on_failure(mocker, monkeypatch):
 
     # We can also assert that an attempt was made to connect.
     mock_mongo_client_class.assert_called_once()
+
+# NOTE - fully AI generated test
+@pytest.mark.parametrize("user_doc_input, expected_forename, expected_surname", [
+    # Test Case 1: The ideal user with given_name and family_name
+    (
+            {
+                '_id': ObjectId(),
+                'email': 'test1@test.com',
+                'given_name': 'John',
+                'family_name': 'Doe'
+            },
+            "John",
+            "Doe"
+    ),
+    # Test Case 2: User with only a 'name' field
+    (
+            {'_id': ObjectId(), 'email': 'test2@test.com', 'name': 'Jane Smith'},
+            "Jane",
+            "Smith"
+    ),
+    # Test Case 3: User with only an 'email' field
+    (
+            {'_id': ObjectId(), 'email': 'test3@test.com'},
+            "test3@test.com",
+            "(No name provided)"
+    ),
+    # Test Case 4: Edge case of a single 'name'
+    (
+            {'_id': ObjectId(), 'email': 'test4@test.com', 'name': 'Cher'},
+            "Cher",
+            ""
+    ),
+    # Test Case 5: A completely empty user object (ultimate fallback)
+    (
+            {'_id': ObjectId()},
+            "Unknown User",
+            "(No name provided)"
+    )
+])
+def test_create_reservation_parses_various_user_name_formats(
+        mocker, user_doc_input, expected_forename, expected_surname
+):
+    """
+    UNIT TEST:
+    Verifies that the reservation creation logic correctly parses the user's name
+    from various possible formats in the user document.
+    """
+    # ARRANGE
+    # Mock all dependencies to isolate the name-parsing logic
+    mocker.patch(
+        'database.reservation_services.mongo_helper.find_one_book',
+        return_value={'id': 'some-book-id'}
+    )
+    mock_reservations_collection = MagicMock()
+    mocker.patch(
+        'database.reservation_services.get_reservations_collection',
+        return_value=mock_reservations_collection
+    )
+    mocker.patch('database.reservation_services.uuid.uuid4')
+    mocker.patch('database.reservation_services.datetime')
+    mock_reservations_collection.insert_one.return_value = MagicMock(inserted_id=ObjectId())
+
+    # ACT
+    # Call the function with the parameterized user document
+    reservation_services.create_reservation_for_book(
+        "some-book-id",
+        user_doc_input,
+        MagicMock()  # mock books_collection
+    )
+
+    # ASSERT
+    # Check that insert_one was called.
+    mock_reservations_collection.insert_one.assert_called_once()
+
+    # Capture the document that was passed to insert_one.
+    inserted_doc = mock_reservations_collection.insert_one.call_args[0][0]
+
+    # Assert that the name was parsed correctly for this test case.
+    assert inserted_doc['forenames'] == expected_forename
+    assert inserted_doc['surname'] == expected_surname
