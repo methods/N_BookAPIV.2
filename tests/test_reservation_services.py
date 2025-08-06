@@ -1,6 +1,7 @@
 """ Unit tests for reservation services """
 import uuid
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, ANY
+from bson.objectid import ObjectId
 import pytest
 from database import reservation_services
 from database.reservation_services import BookNotAvailableForReservationError
@@ -31,7 +32,13 @@ def test_create_reservation_for_book(mocker):
 
     # Fake the book_id and reservation data
     fake_book_id = uuid.uuid4()
-    reservation_payload = {'forenames': 'John', 'surname': 'Doe'}
+    fake_user_doc = {
+        '_id': ObjectId(),
+        'email': 'john.doe@example.com',
+        'given_name': 'John',
+        'family_name': 'Doe',
+        'roles': ['viewer']
+    }
 
     # Mock the fake find_book result
     mock_find_book.return_value = {'id': fake_book_id, 'title': 'A Valid Book'}
@@ -43,8 +50,8 @@ def test_create_reservation_for_book(mocker):
     # Act
     # Call the create_reservation helper function
     new_reservation = reservation_services.create_reservation_for_book(
-        str(fake_book_id),
-        reservation_payload,
+        fake_book_id,
+        fake_user_doc,
         mock_books_collection
     )
 
@@ -58,7 +65,9 @@ def test_create_reservation_for_book(mocker):
     # Check the inserted document
     inserted_doc = mock_reservations_collection.insert_one.call_args[0][0]
     assert inserted_doc['book_id'] == fake_book_id
+    assert inserted_doc['user_id'] == fake_user_doc['_id']
     assert inserted_doc['forenames'] == 'John'
+    assert inserted_doc['surname'] == 'Doe'
     assert inserted_doc['state'] == 'reserved'
     assert inserted_doc['id'] == fake_reservation_uuid
     assert 'reservedAt' in inserted_doc
@@ -66,6 +75,7 @@ def test_create_reservation_for_book(mocker):
     # Check the returned object was correctly processed
     assert new_reservation['id'] == fake_reservation_uuid
     assert new_reservation['book_id'] == fake_book_id
+    assert new_reservation['user_id'] == str(fake_user_doc['_id'])
     assert 'reservedAt' in new_reservation
 
 def test_create_reservation_for_non_existent_book_raises_error(mocker):
