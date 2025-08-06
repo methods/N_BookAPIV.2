@@ -1,6 +1,9 @@
 """ Contains all helper functions for the reservations collection"""
 from datetime import datetime, timezone
 import uuid
+import copy
+from ssl import create_default_context
+
 from bson.objectid import ObjectId
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
@@ -59,10 +62,11 @@ def create_reservation_for_book(book_id, user: dict, books_collection):
 
     # Add the new reservation to the collection
     result = reservations_collection.insert_one(new_reservation_doc)
-    new_reservation_doc['_id'] = result.inserted_id
-    new_reservation_doc.pop('_id', None)
-    new_reservation_doc.pop('user_id', None)
-    new_reservation_doc['reservedAt'] = new_reservation_doc['reservedAt'].isoformat()
-    print(new_reservation_doc)
+    created_reservation = copy.deepcopy(new_reservation_doc)
+    created_reservation['_id'] = result.inserted_id
+    created_reservation.pop('_id', None)
+    created_reservation.pop('user_id', None)
+    created_reservation['reservedAt'] = created_reservation['reservedAt'].isoformat()
+    print(created_reservation)
 
-    return new_reservation_doc
+    return created_reservation
