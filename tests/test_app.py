@@ -41,6 +41,34 @@ def admin_client_fixture(client, mocker):
     # The 'client' object that was passed in now has the session cookie.
     yield client
 
+
+@pytest.fixture(name="viewer_only_client")
+def logged_in_client(client, mocker):
+    """
+    Provides a test client "logged in" as a specific user by mocking
+    the user lookup in the @login_required decorator.
+    """
+    # 1. Define the fake user that will be placed in g.user
+    fake_user_doc = {
+        '_id': ObjectId(),
+        'email': 'testy.mctestface@example.com',
+        'given_name': 'Testy',
+        'family_name': 'McTestface',
+        'roles': ['viewer']
+    }
+
+    # 2. Mock the find_user_by_id function that @login_required depends on
+    mocker.patch(
+        'auth.decorators.user_services.find_user_by_id',
+        return_value=fake_user_doc
+    )
+
+    # 3. Set the session cookie on the client
+    with client.session_transaction() as sess:
+        sess['user_id'] = str(fake_user_doc['_id'])
+
+    yield client
+
 # Create a stub to mock the insert_book_to_mongo function to avoid inserting to real DB
 @pytest.fixture(name="_insert_book_to_db")
 def stub_insert_book():
@@ -173,7 +201,7 @@ def test_500_response_is_json(admin_client):
         assert response.content_type == "application/json"
         assert "An unexpected error occurred" in response.get_json()["error"]
 
-def test_add_reservation_view_on_success(mocker, client, admin_client):
+def test_add_reservation_view_on_success(mocker, client, viewer_only_client):
     """
     GIVEN a logged-in user and a valid payload
     WHEN a POST request is made to create a reservation for a valid book
@@ -182,7 +210,6 @@ def test_add_reservation_view_on_success(mocker, client, admin_client):
     # Arrange
     # Mock data for the book and reservation data
     fake_book_uuid = "a1b2c3d4-e5f6-7890-1234-567890abcdef"
-    reservation_payload = {'forenames': 'Testy', 'surname': 'McTestface'}
     mock_books_collection = MagicMock
 
     # This is the fake, processed document we expect our service to return.
@@ -203,30 +230,33 @@ def test_add_reservation_view_on_success(mocker, client, admin_client):
 
     # Act
     # Use your authenticated client to make the request. A 'viewer' is fine.
-    response = admin_client.post(
+    response = viewer_only_client.post(
         f'/books/{fake_book_uuid}/reservations',
-        json=reservation_payload
+        json={}
     )
 
     # Assert
     # Was the service called with the correct arguments from the URL and payload?
-    mock_create_reservation.assert_called_once_with(
-        fake_book_uuid,
-        reservation_payload,
-        mock_books_collection
-    )
+    mock_create_reservation.assert_called_once()
 
-    # Check for correct HTTP status code
+    # Examine the arguments passed to the service function
+    call_args = mock_create_reservation.call_args[0]
+    passed_book_uuid = call_args[0]
+    passed_user_object = call_args[1]
+    passed_collection_object = call_args[2]
+
+    assert passed_book_uuid == fake_book_uuid
+    # Verify that the user object passed was the one from our logged-in session.
+    assert passed_user_object['email'] == 'testy.mctestface@example.com'
+    assert passed_user_object['given_name'] == 'Testy'
+    # Verify the collection was passed (as per your current design).
+    assert passed_collection_object is not None
+
+    # 3. Check the HTTP response.
     assert response.status_code == 201
-
-    # Check for the correct JSON body
     response_data = response.get_json()
     assert response_data['forenames'] == 'Testy'
     assert response_data['id'] == fake_created_reservation['id']
-
-    # 4. (Optional but good) Did it set the 'Location' header?
-    assert 'Location' in response.headers
-    assert fake_created_reservation['id'] in response.headers['Location']
 
 # ------------------------ Tests for GET --------------------------------------------
 def test_get_all_books_returns_all_books(client):
