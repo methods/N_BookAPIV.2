@@ -120,11 +120,21 @@ def add_book():
 @login_required
 def add_reservation(book_id):
     """ Function to add a new reservation to the reservations collection. """
-    # 1. Validate the incoming JSON payload (is_json, required fields, etc.)
-    # 2. Call the reservation service to do the real work
-    # 3. Handle the success case (return 201 Created)
-    # 4. Handle the failure cases (e.g., Book not found, returns 404)
-    pass # To be implemented
+    # Get the user data from Flask.g object
+    current_user = g.user
+    books_collection = get_book_collection()
+    # Call the reservation service
+    try:
+        new_reservation = reservation_services.create_reservation_for_book(
+            book_id,
+            current_user,
+            books_collection
+        )
+
+        return jsonify(new_reservation), 201
+
+    except reservation_services.BookNotAvailableForReservationError as e:
+        return jsonify({"error": str(e)}), 404
 
 # ----------- GET section ------------------
 @app.route("/books", methods=["GET"])
