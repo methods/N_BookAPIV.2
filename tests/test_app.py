@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from unittest.mock import patch, MagicMock
 from bson.objectid import ObjectId
 from pymongo.errors import ServerSelectionTimeoutError
+from database.reservation_services import BookNotAvailableForReservationError
 import pytest
 from app import app, get_book_collection
 
@@ -257,6 +258,47 @@ def test_add_reservation_view_on_success(mocker, client, viewer_only_client):
     response_data = response.get_json()
     assert response_data['forenames'] == 'Testy'
     assert response_data['id'] == fake_created_reservation['id']
+
+def test_add_reservation_view_for_invalid_book_returns_404(mocker, viewer_only_client):
+    """
+    GIVEN a logged-in user
+    WHEN they try to create a reservation for a book that is invalid or deleted
+    AND the reservation service raises a BookNotAvailableForReservationError
+    THEN the view should catch the exception and return a 404 Not Found.
+    """
+    # Note - fully AI generated test
+    # ARRANGE
+    # 1. An ID for a book that we'll pretend doesn't exist or is deleted.
+    non_existent_book_uuid = "a1b2c3d4-e5f6-7890-ffffffffffff"
+
+    # 2. Mock the service function to simulate the failure.
+    #    Instead of returning a value, we'll use 'side_effect' to make it raise our custom exception.
+    error_message = f"Book with ID {non_existent_book_uuid} is not available for reservation."
+    mock_create_reservation = mocker.patch(
+        'app.reservation_services.create_reservation_for_book'  # Adjust path as needed
+    )
+    mock_create_reservation.side_effect = BookNotAvailableForReservationError(error_message)
+
+    # ACT
+    # Make the request using an authenticated client. The payload doesn't matter
+    # for this test, as the service will fail before it's used.
+    response = viewer_only_client.post(
+        f'/books/{non_existent_book_uuid}/reservations',
+        json={}  # An empty JSON body is fine since our service is mocked to fail
+    )
+
+    # ASSERT
+    # 1. Was our service function called? This confirms the view logic was triggered.
+    mock_create_reservation.assert_called_once()
+
+    # 2. Did the view correctly translate the exception into a 404 Not Found?
+    assert response.status_code == 404
+    assert response.content_type == "application/json"
+
+    # 3. Did the response body contain the helpful error message from the exception?
+    response_data = response.get_json()
+    assert "error" in response_data
+    assert response_data["error"] == error_message
 
 # ------------------------ Tests for GET --------------------------------------------
 def test_get_all_books_returns_all_books(client):
