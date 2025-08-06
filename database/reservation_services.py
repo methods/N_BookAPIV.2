@@ -60,7 +60,9 @@ def create_reservation_for_book(book_id, user: dict, books_collection):
     # Add the new reservation to the collection
     result = reservations_collection.insert_one(new_reservation_doc)
     new_reservation_doc['_id'] = result.inserted_id
-    new_reservation_doc.pop('_id', None)  # Hide the internal _id
+    new_reservation_doc.pop('_id', None)
+    new_reservation_doc.pop('user_id', None)
     new_reservation_doc['reservedAt'] = new_reservation_doc['reservedAt'].isoformat()
+    print(new_reservation_doc)
 
     return new_reservation_doc
