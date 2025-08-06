@@ -102,14 +102,20 @@ def test_create_reservation_for_non_existent_book_raises_error(mocker):
 
     # 3. Set up input data
     non_existent_book_uuid = str(uuid.uuid4())
-    reservation_payload = {'forenames': 'John', 'surname': 'Doe'}
+    fake_user_doc = {
+        '_id': ObjectId(),
+        'email': 'john.doe@example.com',
+        'given_name': 'John',
+        'family_name': 'Doe',
+        'roles': ['viewer']
+    }
 
     # ACT & ASSERT
     # Use pytest.raises to assert that our specific exception is thrown.
     with pytest.raises(BookNotAvailableForReservationError) as exc_info:
         reservation_services.create_reservation_for_book(
             non_existent_book_uuid,
-            reservation_payload,
+            fake_user_doc,
             mock_books_collection
         )
 
