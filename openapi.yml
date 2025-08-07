@@ -24,9 +24,10 @@ servers:
 tags:
   - name: Books
     description: Operations related to books
-    externalDocs:
-      description: Find out more
-      url: example.com
+  - name: Reservations
+    description: Operations for creating and managing book reservations.
+  - name: Authentication
+    description: Endpoints for user authentication and session management.
 
 # --------------------------------------------
 # Components
@@ -104,7 +105,70 @@ components:
           items:
             $ref: '#/components/schemas/BookOutput'
 
-    # Generic Error schema
+    # --- Reservation Schemas (NEW) ---
+    ReservationInput:
+      type: object
+      properties:
+        forenames:
+          type: string
+          description: The first name(s) of the person making the reservation.
+          example: "Arthur"
+        surname:
+          type: string
+          description: The last name of the person making the reservation.
+          example: "Dent"
+      required:
+        - forenames
+        - surname
+
+    ReservationLinks:
+      type: object
+      properties:
+        self:
+          type: string
+          description: Link to this specific reservation.
+          example: "/books/123e4567-e89b-12d3-a456-426614174000/reservations/abc-123-def-456"
+        book:
+          type: string
+          description: Link to the parent book of this reservation.
+          example: "/books/123e4567-e89b-12d3-a456-426614174000"
+      required:
+        - self
+        - book
+
+    ReservationOutput:
+      allOf:
+        - $ref: '#/components/schemas/ReservationInput'
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          description: The unique identifier for the reservation.
+          readOnly: true
+          example: "abc-123-def-456"
+        book_id:
+          type: string
+          format: uuid
+          description: The ID of the book being reserved.
+          readOnly: true
+          example: "123e4567-e89b-12d3-a456-426614174000"
+        state:
+          type: string
+          description: The current state of the reservation.
+          readOnly: true
+          example: "reserved"
+        reservedAt:
+          type: string
+          format: date-time
+          description: The UTC timestamp when the reservation was created.
+          readOnly: true
+          example: "2025-07-10T14:48:00.000Z"
+        links:
+          $ref: '#/components/schemas/ReservationLinks'
+          readOnly: true
+
+    # --- General Schemas ---
     Error:
       type: object
       properties:
@@ -113,12 +177,12 @@ components:
           description: A message describing the error.
       required:
         - error
-  # Information about the security of the API
+
   securitySchemes:
     cookieAuth:
       type: cookie
       in: cookie
-      name: session # The name of the session cookie
+      name: session
       description: >
         Session cookie obtained after a successful login via the `/auth/login` 
         browser-based flow. This cookie must be included in all subsequent
@@ -432,7 +496,66 @@ paths:
                 $ref: '#/components/schemas/Error'
               example:
                 error: "An unexpected error occurred."
-# --------------------------------------------
+
+  # --- NEW RESERVATION PATH ---
+  /books/{book_id}/reservations:
+    post:
+      tags:
+        - Reservations
+      summary: Create a reservation for a book
+      description: >
+        Creates a new reservation for a specific book. Requires the user to be authenticated.
+        The user's details for the reservation will be taken from their authenticated session.
+        This endpoint does not accept a request body.
+      operationId: createReservation
+      security:
+        - cookieAuth: [ ] # This endpoint is protected
+      parameters:
+        - name: book_id
+          in: path
+          required: true
+          description: The unique identifier of the book to reserve.
+          schema:
+            type: string
+            format: uuid
+      # No requestBody is needed as user info comes from the session (g.user)
+      responses:
+        '201':
+          description: Reservation created successfully.
+          headers:
+            Location:
+              description: The URL of the newly created reservation.
+              schema:
+                type: string
+                format: uri
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ReservationOutput'
+        '401':
+          description: Unauthorized - The user is not logged in.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Unauthorized"
+        '404':
+          description: Book not found. The book ID provided does not correspond to an active book.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+              example:
+                error: "Book not found"
+        '500':
+          description: Internal Server Error.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+# ---AUTHENTICATION PATHS--------------------
   /auth/login:
     get:
       tags:
