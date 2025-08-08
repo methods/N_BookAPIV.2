@@ -16,6 +16,7 @@ from database.mongo_helper import (
     delete_book_by_id,
     update_book_by_id
 )
+from database import reservation_services
 from auth.services import init_oauth
 from auth.views import auth_bp # Imports the blueprint object from the auth module
 from auth.decorators import login_required, roles_required
@@ -115,6 +116,25 @@ def add_book():
 
     return jsonify(book_for_response), 201
 
+@app.route('/books/<book_id>/reservations', methods=['POST'])
+@login_required
+def add_reservation(book_id):
+    """ Function to add a new reservation to the reservations collection. """
+    # Get the user data from Flask.g object
+    current_user = g.user
+    books_collection = get_book_collection()
+    # Call the reservation service
+    try:
+        new_reservation = reservation_services.create_reservation_for_book(
+            book_id,
+            current_user,
+            books_collection
+        )
+
+        return jsonify(new_reservation), 201
+
+    except reservation_services.BookNotAvailableForReservationError as e:
+        return jsonify({"error": str(e)}), 404
 
 # ----------- GET section ------------------
 @app.route("/books", methods=["GET"])

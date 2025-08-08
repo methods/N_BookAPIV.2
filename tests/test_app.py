@@ -1,9 +1,12 @@
 # pylint: disable=missing-docstring
 import os
+import uuid
+from datetime import datetime, timezone
 from unittest.mock import patch
 from bson.objectid import ObjectId
 from pymongo.errors import ServerSelectionTimeoutError
 import pytest
+from database.reservation_services import BookNotAvailableForReservationError
 from app import app, get_book_collection
 
 # Option 1: Rename the fixture to something unique (which I've used)
@@ -37,6 +40,34 @@ def admin_client_fixture(client, mocker):
         sess['user_id'] = str(fake_admin_id)
 
     # The 'client' object that was passed in now has the session cookie.
+    yield client
+
+
+@pytest.fixture(name="viewer_only_client")
+def logged_in_client(client, mocker):
+    """
+    Provides a test client "logged in" as a specific user by mocking
+    the user lookup in the @login_required decorator.
+    """
+    # 1. Define the fake user that will be placed in g.user
+    fake_user_doc = {
+        '_id': ObjectId(),
+        'email': 'testy.mctestface@example.com',
+        'given_name': 'Testy',
+        'family_name': 'McTestface',
+        'roles': ['viewer']
+    }
+
+    # 2. Mock the find_user_by_id function that @login_required depends on
+    mocker.patch(
+        'auth.decorators.user_services.find_user_by_id',
+        return_value=fake_user_doc
+    )
+
+    # 3. Set the session cookie on the client
+    with client.session_transaction() as sess:
+        sess['user_id'] = str(fake_user_doc['_id'])
+
     yield client
 
 # Create a stub to mock the insert_book_to_mongo function to avoid inserting to real DB
@@ -170,6 +201,103 @@ def test_500_response_is_json(admin_client):
 
         assert response.content_type == "application/json"
         assert "An unexpected error occurred" in response.get_json()["error"]
+
+def test_add_reservation_view_on_success(mocker, viewer_only_client):
+    """
+    GIVEN a logged-in user and a valid payload
+    WHEN a POST request is made to create a reservation for a valid book
+    THEN it should call the reservation service and return a 201 Created response.
+    """
+    # Arrange
+    # Mock data for the book and reservation data
+    fake_book_uuid = "a1b2c3d4-e5f6-7890-1234-567890abcdef"
+
+    # This is the fake, processed document we expect our service to return.
+    fake_created_reservation = {
+        'id': str(uuid.uuid4()),
+        'book_id': fake_book_uuid,
+        'forenames': 'Testy',
+        'surname': 'McTestface',
+        'state': 'reserved',
+        'reservedAt': datetime.now(timezone.utc).isoformat()
+    }
+
+    # Mock the service function that the view depends on.
+    mock_create_reservation = mocker.patch(
+        'app.reservation_services.create_reservation_for_book'  # Adjust path as needed
+    )
+    mock_create_reservation.return_value = fake_created_reservation
+
+    # Act
+    # Use your authenticated client to make the request. A 'viewer' is fine.
+    response = viewer_only_client.post(
+        f'/books/{fake_book_uuid}/reservations',
+        json={}
+    )
+
+    # Assert
+    # Was the service called with the correct arguments from the URL and payload?
+    mock_create_reservation.assert_called_once()
+
+    # Examine the arguments passed to the service function
+    call_args = mock_create_reservation.call_args[0]
+    passed_book_uuid = call_args[0]
+    passed_user_object = call_args[1]
+    passed_collection_object = call_args[2]
+
+    assert passed_book_uuid == fake_book_uuid
+    # Verify that the user object passed was the one from our logged-in session.
+    assert passed_user_object['email'] == 'testy.mctestface@example.com'
+    assert passed_user_object['given_name'] == 'Testy'
+    # Verify the collection was passed (as per your current design).
+    assert passed_collection_object is not None
+
+    # 3. Check the HTTP response.
+    assert response.status_code == 201
+    response_data = response.get_json()
+    assert response_data['forenames'] == 'Testy'
+    assert response_data['id'] == fake_created_reservation['id']
+
+def test_add_reservation_view_for_invalid_book_returns_404(mocker, viewer_only_client):
+    """
+    GIVEN a logged-in user
+    WHEN they try to create a reservation for a book that is invalid or deleted
+    AND the reservation service raises a BookNotAvailableForReservationError
+    THEN the view should catch the exception and return a 404 Not Found.
+    """
+    # Note - fully AI generated test
+    # ARRANGE
+    # 1. An ID for a book that we'll pretend doesn't exist or is deleted.
+    non_existent_book_uuid = "a1b2c3d4-e5f6-7890-ffffffffffff"
+
+    # 2. Mock the service function to simulate the failure.
+    #    Instead of returning a value, use 'side_effect' to make it raise our custom exception.
+    error_message = f"Book with ID {non_existent_book_uuid} is not available for reservation."
+    mock_create_reservation = mocker.patch(
+        'app.reservation_services.create_reservation_for_book'  # Adjust path as needed
+    )
+    mock_create_reservation.side_effect = BookNotAvailableForReservationError(error_message)
+
+    # ACT
+    # Make the request using an authenticated client. The payload doesn't matter
+    # for this test, as the service will fail before it's used.
+    response = viewer_only_client.post(
+        f'/books/{non_existent_book_uuid}/reservations',
+        json={}  # An empty JSON body is fine since our service is mocked to fail
+    )
+
+    # ASSERT
+    # 1. Was our service function called? This confirms the view logic was triggered.
+    mock_create_reservation.assert_called_once()
+
+    # 2. Did the view correctly translate the exception into a 404 Not Found?
+    assert response.status_code == 404
+    assert response.content_type == "application/json"
+
+    # 3. Did the response body contain the helpful error message from the exception?
+    response_data = response.get_json()
+    assert "error" in response_data
+    assert response_data["error"] == error_message
 
 # ------------------------ Tests for GET --------------------------------------------
 def test_get_all_books_returns_all_books(client):

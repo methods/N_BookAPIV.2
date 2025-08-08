@@ -1,7 +1,7 @@
 #!/bin/bash
 # Run pytest with coverage
 echo "Running tests with coverage..."
-coverage run -m pytest tests/test_app.py tests/test_database_services.py tests/test_integration.py tests/test_auth.py tests/test_auth_views.py
+coverage run -m pytest tests/test_app.py tests/test_database_services.py tests/test_integration.py tests/test_auth.py tests/test_auth_views.py tests/test_reservation_services.py
 # Specify folders to omitted from coverage check
 OMIT_PATTERN="tests/*,venv/*"
 # Check if the tests passed

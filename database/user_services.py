@@ -33,6 +33,8 @@ def get_or_create_user_from_oidc(profile):
         'google_id': profile['sub'],
         'email': profile['email'],
         'name': profile.get('name'),
+        'given_name': profile.get('given_name'),
+        'family_name': profile.get('family_name'),
         'roles': ['viewer'], # Assign default role
         'createdAt': datetime.now(timezone.utc),
         'lastLogin': datetime.now(timezone.utc)

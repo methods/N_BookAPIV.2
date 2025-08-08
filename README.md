@@ -93,6 +93,19 @@ make run
 ```
 The API will be available at http://127.0.0.1:5000.
 
+## API Documentation
+
+This project uses the OpenAPI 3.0 standard for detailed API documentation. The full specification, which acts as the API's contract, is defined in the openapi.yml file.
+
+This document is the single source of truth for:
+
+* All available endpoints and their supported HTTP methods.
+* The required request parameters and body schemas.
+* The structure of all possible response objects, including error responses.
+* The security schemes and which endpoints require authentication.
+
+It is highly recommended to use an OpenAPI-compatible viewer to explore the API interactively. Many modern IDEs, such as VS Code (with the Swagger Viewer extension) and JetBrains IDEs, have built-in viewers that provide a "Try it out" feature for making live requests to the running application.
+
 ## Authentication and Authorization
 
 This API now implements a robust authentication and authorization layer to protect sensitive endpoints.

@@ -26,7 +26,7 @@ def init_oauth(app):
         server_metadata_url='https://accounts.google.com/.well-known/openid-configuration',
         # This URL is for Google's OpenID Connect - it stores all the information for their OAuth
         # connection, with which Authlib automatically configures itself.
-        client_kwargs={'scope': 'openid email'}
+        client_kwargs={'scope': 'openid email profile'}
     )
 
 def oauth_login():
