@@ -71,3 +71,9 @@ def create_reservation_for_book(book_id, user: dict, books_collection):
     print(created_reservation)
 
     return created_reservation
+
+def find_reservation_by_id(reservation_id):
+    """
+    Find a reservation record by its 'id' field which is uuid.
+    """
+    pass
