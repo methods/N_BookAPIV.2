@@ -11,6 +11,11 @@ class BookNotAvailableForReservationError(Exception):
     Exception raised when a reservation has not been available for book
     """
 
+class ReservationNotFoundError(Exception):
+    """
+    Exception raised when a reservation cannot be found in the database
+    """
+
 def get_reservations_collection():
     """
     Connect to the database and return the reservations collection
@@ -76,4 +81,18 @@ def find_reservation_by_id(reservation_id):
     """
     Find a reservation record by its 'id' field which is uuid.
     """
-    pass
+    # Prepare the collection to be searched
+    reservations_collection = get_reservations_collection()
+
+    # Search the collection using the given reservation_id
+    result = reservations_collection.find_one({'id': reservation_id})
+    if result is None:
+        raise ReservationNotFoundError(
+            f"Reservation with ID {reservation_id} cannot be found in the database."
+        )
+    # Prepare the returned reservation document for output and return it
+    result.pop('_id', None)
+    result.pop('user_id', None)
+    result['reservedAt'] = result['reservedAt'].isoformat()
+    return result
+
