@@ -7,7 +7,7 @@ from bson.objectid import ObjectId
 import pytest
 from pymongo.errors import ConnectionFailure
 from database import reservation_services
-from database.reservation_services import BookNotAvailableForReservationError
+from database.reservation_services import BookNotAvailableForReservationError, ReservationNotFoundError
 from app import app
 
 def test_create_reservation_for_book(mocker):
@@ -336,3 +336,40 @@ def test_find_reservation_by_id_success_unit(mocker):
     # Check that the datetime object was converted to an ISO string.
     assert isinstance(result['reservedAt'], str)
     assert result['reservedAt'] == fake_db_document['reservedAt'].isoformat()
+
+
+def test_find_reservation_by_id_raises_error_when_not_found(mocker):
+    """
+    UNIT TEST for find_reservation_by_id failure path.
+
+    GIVEN a reservation ID that does not exist in the database
+    WHEN find_reservation_by_id is called
+    THEN it should raise a ReservationNotFoundError.
+    """
+    # ARRANGE
+    # 1. Mock the collection getter and the collection object.
+    mock_get_collection = mocker.patch(
+        'database.reservation_services.get_reservations_collection'
+    )
+    mock_reservations_collection = MagicMock()
+    mock_get_collection.return_value = mock_reservations_collection
+
+    # 2. This is the key step: Configure find_one to return None,
+    #    simulating a document that is not found.
+    mock_reservations_collection.find_one.return_value = None
+
+    # 3. An ID to search for. The actual value doesn't matter since the mock will always return None.
+    non_existent_uuid = str(uuid.uuid4())
+
+    # ACT & ASSERT
+    # Use pytest.raises as a context manager to assert that our
+    # specific exception was raised during the function call.
+    with pytest.raises(ReservationNotFoundError) as exc_info:
+        reservation_services.find_reservation_by_id(non_existent_uuid)
+
+    # (Optional but recommended) Assert that the exception message is helpful and contains the ID.
+    assert non_existent_uuid in str(exc_info.value)
+    assert "cannot be found" in str(exc_info.value)
+
+    # We can also verify that the database was queried correctly before the exception was raised.
+    mock_reservations_collection.find_one.assert_called_once_with({'id': non_existent_uuid})
