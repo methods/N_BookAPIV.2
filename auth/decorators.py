@@ -1,7 +1,7 @@
 """ Contains all the authorization decorators to control database access """
 from functools import wraps
 from flask import session, redirect, g, abort
-from database import user_services
+from database import user_services, reservation_services
 
 def login_required(f):
     """
@@ -42,3 +42,17 @@ def roles_required(*required_roles):
             return f(*args, **kwargs)
         return decorated_function
     return decorator # The outer function must return the decorator
+
+def reservation_owner_or_admin_required(reservation_id):
+    """
+    NOTE - Must be called after login_required decorator
+
+    A decorator to ensure a user EITHER is owner of the reservation
+    OR is an Admin.
+    """
+    def decorator(f):
+        @wraps(f)
+        def decorated_function(*args, **kwargs):
+            pass
+        return decorated_function
+    return decorator

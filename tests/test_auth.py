@@ -1,11 +1,12 @@
 # pylint: disable=missing-docstring
 import os
+import uuid
 from unittest.mock import MagicMock
 from bson.objectid import ObjectId
 from flask import redirect, g, session, jsonify
 import pytest
 from werkzeug.exceptions import Forbidden
-from auth.decorators import login_required, roles_required
+from auth.decorators import login_required, roles_required, reservation_owner_or_admin_required
 import auth.services as auth_services
 from auth.services import AuthServiceError
 from app import app
@@ -244,3 +245,62 @@ def test_roles_required_allows_user_with_role(_client):
 
         # Assert
         assert response == "Admin Access Granted"
+
+def test_reservation_owner_or_admin_decorator_allows_owner_unit(mocker, _client):
+    """
+    UNIT TEST:
+    GIVEN a user who is the owner of a reservation (and not an admin)
+    WHEN a view protected by the decorator is called
+    THEN it should fetch the reservation, attach it to g.reservation,
+    and allow the view function to execute.
+    """
+    # NOTE - Test written by AI from docstring
+    # ARRANGE
+    # 1. Define the fake data. The key is that the user's public 'id'
+    #    matches the 'user_id' in the reservation document.
+    fake_user_public_id = "user-uuid-123"
+    fake_user_doc = {
+        '_id': ObjectId(),
+        'id': fake_user_public_id,
+        'email': 'owner@test.com',
+        'roles': ['viewer'] # This user is NOT an admin
+    }
+
+    fake_reservation_id = str(uuid.uuid4())
+    fake_reservation_doc = {
+        '_id': ObjectId(),
+        'id': fake_reservation_id,
+        'user_id': fake_user_public_id, # Link to the owner
+        'book_id': str(uuid.uuid4())
+    }
+
+    # 2. Mock the dependency of the decorator, which is the service function
+    #    that fetches the reservation.
+    mock_find_reservation = mocker.patch(
+        'auth.decorators.reservation_services.find_reservation_by_id'
+    )
+    mock_find_reservation.return_value = fake_reservation_doc
+
+    # 3. Create a test request context. This is what allows us to use 'g'.
+    with app.test_request_context(f"/reservations/{fake_reservation_id}"):
+        # 4. Manually set g.user. We are simulating the state AFTER
+        #    @login_required has successfully run.
+        g.user = fake_user_doc
+
+        # 5. Define a fake view function and apply our decorator to it.
+        @reservation_owner_or_admin_required
+        def fake_protected_view(reservation_id):
+            # This is the code that will run if the decorator allows access.
+            # We can use it to prove that g.reservation was set correctly.
+            return f"Success for reservation {g.reservation['id']}"
+
+        # ACT
+        # Call the decorated function directly.
+        response = fake_protected_view(fake_reservation_id)
+
+    # ASSERT
+    # 1. Was the database service called to fetch the reservation?
+    mock_find_reservation.assert_called_once_with(fake_reservation_id)
+
+    # 2. Did the view execute successfully and return the expected success message?
+    assert response == f"Success for reservation {fake_reservation_id}"
