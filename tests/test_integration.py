@@ -1,5 +1,7 @@
 # pylint: disable=missing-docstring
 import os
+import uuid
+from flask import g
 from bson.objectid import ObjectId
 import pytest
 from pymongo import MongoClient
@@ -179,3 +181,72 @@ def test_update_soft_deleted_book_returns_404(mongo_client, admin_client):
     book_in_db = collection.find_one({'_id': ObjectId(book_id)})
     assert book_in_db['title'] == 'The Deleted Book'  # The title was NOT updated
     assert book_in_db['state'] == 'deleted'
+
+
+def test_get_reservation_succeeds_for_admin(admin_client, mongo_client, mocker):
+    """
+    INTEGRATION TEST for GET /books/{id}/reservations/{id} as an admin.
+
+    GIVEN a logged-in admin user and an existing reservation owned by ANOTHER user
+    WHEN a GET request is made to the reservation's specific URL
+    THEN the decorators should grant access and the view should return a 200 OK
+    with the correct reservation data.
+    """
+    # Set up the test database
+    db = mongo_client['test_database']
+    user_collection = db['test_users']
+    reservation_collection = db['test_reservations']
+
+    # ARRANGE
+    # -----------------------------------------------------------
+    # 1. Create the data in the REAL test database.
+    owner_user = {
+        'id': str(uuid.uuid4()),
+        '_id': ObjectId(),
+        'roles': ['viewer']
+    }
+
+    admin_user = {
+        'id': str(uuid.uuid4()),
+        '_id': ObjectId(),
+        'roles': ['viewer', 'admin']
+    }
+
+    # Insert both users into the test DB
+    user_collection.insert_many([owner_user, admin_user])
+
+    reservation_doc = {
+        'id': str(uuid.uuid4()),
+        'book_id': str(uuid.uuid4()),
+        'user_id': owner_user['id']  # The reservation is owned by the non-admin user
+    }
+    reservation_collection.insert_one(reservation_doc)
+
+    # 2. Mock the user lookup for the @login_required decorator.
+    #    We are logging in as the ADMIN user.
+    mocker.patch(
+        'auth.decorators.user_services.find_user_by_id',
+        return_value=admin_user
+    )
+
+    # 3. Use the client to "log in" as the admin user by setting the session.
+    with admin_client.session_transaction() as sess:
+        sess['user_id'] = str(admin_user['id'])
+
+    # ACT
+    # -----------------------------------------------------------
+    # Make a real HTTP request to the endpoint.
+    response = admin_client.get(
+        f"/books/{reservation_doc['book_id']}/reservations/{reservation_doc['id']}"
+    )
+
+    # ASSERT
+    # -----------------------------------------------------------
+    # 1. Check the HTTP response.
+    assert response.status_code == 200
+    assert response.content_type == 'application/json'
+
+    # 2. Check the content of the JSON body.
+    response_data = response.get_json()
+    assert response_data['id'] == reservation_doc['id']
+    assert response_data['user_id'] == owner_user['id']  # Verify it's the owner's reservation

@@ -22,7 +22,7 @@ def client_fixture():
 @pytest.fixture(name="admin_client")
 def admin_client_fixture(client, mocker):
     # Create the fake admin user object
-    fake_admin_id = uuid.uuid4()
+    fake_admin_id = str(uuid.uuid4())
     fake_admin_doc = {
         'id': fake_admin_id,
         'email': 'admin@test.com',
@@ -49,7 +49,7 @@ def logged_in_client(client, mocker):
     Provides a test client "logged in" as a specific user by mocking
     the user lookup in the @login_required decorator.
     """
-    fake_user_id = uuid.uuid4()
+    fake_user_id = str(uuid.uuid4())
     # 1. Define the fake user that will be placed in g.user
     fake_user_doc = {
         'id': fake_user_id,
