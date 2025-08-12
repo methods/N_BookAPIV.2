@@ -19,7 +19,7 @@ from database.mongo_helper import (
 from database import reservation_services
 from auth.services import init_oauth
 from auth.views import auth_bp # Imports the blueprint object from the auth module
-from auth.decorators import login_required, roles_required
+from auth.decorators import login_required, roles_required, reservation_owner_or_admin_required
 
 app = Flask(__name__)
 
@@ -211,6 +211,18 @@ def get_book(book_id):
         book_copy.pop("state", None)
         return jsonify(append_hostname(book_copy, host)), 200
     return jsonify({"error": "Book not found"}), 404
+
+@app.route("/books/<string:book_id>/reservations/<string:reservation_id>", methods=["GET"])
+@login_required
+@reservation_owner_or_admin_required
+def get_reservation(book_id, reservation_id):
+    """
+    Retrieve a specific reservation by its unique ID,
+    if the reservation is owned by the current user,
+    or if the current user is an admin.
+    """
+    print("Nothing here yet")
+    return
 
 # ----------- DELETE section ------------------
 @app.route("/books/<string:book_id>", methods=["DELETE"])

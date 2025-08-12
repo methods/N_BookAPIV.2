@@ -22,9 +22,9 @@ def client_fixture():
 @pytest.fixture(name="admin_client")
 def admin_client_fixture(client, mocker):
     # Create the fake admin user object
-    fake_admin_id = ObjectId()
+    fake_admin_id = uuid.uuid4()
     fake_admin_doc = {
-        '_id': fake_admin_id,
+        'id': fake_admin_id,
         'email': 'admin@test.com',
         'roles': ['admin', 'viewer']
     }
@@ -37,7 +37,7 @@ def admin_client_fixture(client, mocker):
 
     # Use the client's session_transaction to set the cookie
     with client.session_transaction() as sess:
-        sess['user_id'] = str(fake_admin_id)
+        sess['user_id'] = fake_admin_id
 
     # The 'client' object that was passed in now has the session cookie.
     yield client
@@ -49,9 +49,10 @@ def logged_in_client(client, mocker):
     Provides a test client "logged in" as a specific user by mocking
     the user lookup in the @login_required decorator.
     """
+    fake_user_id = uuid.uuid4()
     # 1. Define the fake user that will be placed in g.user
     fake_user_doc = {
-        '_id': ObjectId(),
+        'id': fake_user_id,
         'email': 'testy.mctestface@example.com',
         'given_name': 'Testy',
         'family_name': 'McTestface',
@@ -66,7 +67,7 @@ def logged_in_client(client, mocker):
 
     # 3. Set the session cookie on the client
     with client.session_transaction() as sess:
-        sess['user_id'] = str(fake_user_doc['_id'])
+        sess['user_id'] = fake_user_id
 
     yield client
 
