@@ -52,8 +52,6 @@ def reservation_owner_or_admin_required(f):
     """
     @wraps(f)
     def decorated_function(*args, **kwargs):
-        # Get the user's id field from Flask's g object
-        current_user = g.user
         # Get the reservation_id from the URL
         query_reservation_id = kwargs.get('reservation_id')  # Get ID from URL
         if not query_reservation_id:
@@ -62,6 +60,8 @@ def reservation_owner_or_admin_required(f):
         resource = reservation_services.find_reservation_by_id(query_reservation_id)
         if not resource:
             abort(404, "Resource not found.")
+        # Get the user's id field from Flask's g object
+        current_user = g.user
         # Attach the found resource to the 'g' object
         g.reservation = resource
 

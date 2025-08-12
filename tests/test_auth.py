@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 from bson.objectid import ObjectId
 from flask import redirect, g, session, jsonify
 import pytest
-from werkzeug.exceptions import Forbidden
+from werkzeug.exceptions import InternalServerError, NotFound, Forbidden
 from auth.decorators import login_required, roles_required, reservation_owner_or_admin_required
 import auth.services as auth_services
 from auth.services import AuthServiceError
@@ -304,3 +304,93 @@ def test_reservation_owner_or_admin_decorator_allows_owner_unit(mocker, _client)
 
     # 2. Did the view execute successfully and return the expected success message?
     assert response == f"Success for reservation {fake_reservation_id}"
+
+
+def test_reservation_decorator_aborts_500_if_kwarg_is_missing(_client):
+    """
+    UNIT TEST:
+    GIVEN a route that is missing the 'reservation_id' variable
+    WHEN the decorator is called
+    THEN it should abort with a 500 Internal Server Error.
+    """
+    with app.test_request_context('/some_other_route'):
+        # ARRANGE
+        # The decorator should fail before it ever calls a service
+        @reservation_owner_or_admin_required
+        def bad_view():
+            pass
+
+        # ACT & ASSERT
+        # Assert that calling the view with NO keyword arguments
+        # raises the correct exception.
+        with pytest.raises(InternalServerError) as exc_info:
+            bad_view()
+
+        # Check the error message for clarity
+        assert "couldn't find reservation ID in URL" in str(exc_info.value)
+
+
+def test_reservation_decorator_aborts_404_if_resource_not_found(mocker, _client):
+    """
+    UNIT TEST:
+    GIVEN a reservation ID that does not exist
+    WHEN the decorator is called
+    THEN it should abort with a 404 Not Found error.
+    """
+    # ARRANGE
+    # Mock the service dependency to simulate "not found"
+    mock_find_reservation = mocker.patch(
+        'auth.decorators.reservation_services.find_reservation_by_id'
+    )
+    mock_find_reservation.return_value = None
+
+    non_existent_uuid = "non-existent-uuid-123"
+
+    with app.test_request_context(f"/reservations/{non_existent_uuid}"):
+        # We still need a valid g.user for the decorator to run past the login check
+        g.user = {'roles': ['viewer'], 'id': 'some-user-id'}
+
+        @reservation_owner_or_admin_required
+        def fake_view(reservation_id):
+            pass
+
+        # ACT & ASSERT
+        with pytest.raises(NotFound):  # werkzeug.exceptions.NotFound is the 404 error
+            fake_view(reservation_id=non_existent_uuid)
+
+    # Verify the service was called correctly before the abort
+    mock_find_reservation.assert_called_once_with(non_existent_uuid)
+
+def test_reservation_decorator_aborts_403_for_unauthorized_user(mocker, _client):
+    """
+    UNIT TEST:
+    GIVEN a user who is neither the owner nor an admin
+    WHEN the decorator is called
+    THEN it should abort with a 403 Forbidden error.
+    """
+    # ARRANGE
+    # 1. This user is NOT an admin.
+    unauthorized_user = {'id': 'user-id-123', 'roles': ['viewer']}
+
+    # 2. This reservation is owned by SOMEONE ELSE.
+    reservation_owned_by_other = {
+        'id': 'res-uuid-abc',
+        'user_id': 'a-different-user-id-456'
+    }
+
+    # 3. Mock the service to return the reservation.
+    mock_find_reservation = mocker.patch(
+        'auth.decorators.reservation_services.find_reservation_by_id'
+    )
+    mock_find_reservation.return_value = reservation_owned_by_other
+
+    with app.test_request_context("/reservations/res-uuid-abc"):
+        g.user = unauthorized_user
+
+        @reservation_owner_or_admin_required
+        def fake_view(reservation_id):
+            pass
+
+        # ACT & ASSERT
+        with pytest.raises(Forbidden): # werkzeug.exceptions.Forbidden is the 403
+            fake_view(reservation_id="res-uuid-abc")
