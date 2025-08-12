@@ -296,7 +296,7 @@ def test_reservation_owner_or_admin_decorator_allows_owner_unit(mocker, _client)
 
         # ACT
         # Call the decorated function directly.
-        response = fake_protected_view(fake_reservation_id)
+        response = fake_protected_view(reservation_id=fake_reservation_id)
 
     # ASSERT
     # 1. Was the database service called to fetch the reservation?
