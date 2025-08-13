@@ -64,10 +64,9 @@ def reservation_owner_or_admin_required(f):
         current_user = g.user
         # Attach the found resource to the 'g' object
         g.reservation = resource
-
         # Check for ownership using the user's public UUID
         owner_id = resource.get('user_id')
-        user_id = current_user.get('id')
+        user_id = current_user.get('_id')
 
         # Check for logged in admin or user match
         is_admin = 'admin' in current_user.get('roles', [])

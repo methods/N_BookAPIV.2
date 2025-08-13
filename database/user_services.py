@@ -61,6 +61,7 @@ def find_user_by_id(user_id):
         # Convert the string ID from the session back to a BSON ObjectId
         obj_id = ObjectId(user_id)
         result = users_collection.find_one({'_id': obj_id})
+        result['_id'] = str(result['_id'])
         return result
     except InvalidId:
         # Handle cases where the session contains a malformed ID string
