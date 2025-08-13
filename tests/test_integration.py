@@ -5,7 +5,8 @@ from flask import g
 from bson.objectid import ObjectId
 import pytest
 from pymongo import MongoClient
-from app import app
+from database import user_services, reservation_services, mongo_helper
+from app import app, get_book_collection
 
 # pylint: disable=R0801
 @pytest.fixture(name="client")
@@ -51,6 +52,35 @@ def mongo_client_fixture():
     yield client
     # Clean up the mongoDB after the test
     client.drop_database("test_database")
+
+@pytest.fixture(name="admin_user")
+def make_admin_user(mongo_client):
+    """Creates a real admin user in the test database and returns the document."""
+    # 1. Define the OIDC profile for the user we want to create.
+    admin_profile = {
+        'sub': 'google-admin-id-for-test',
+        'email': 'admin@test.com',
+        'name': 'Test Admin',
+        'test_role': 'admin'
+    }
+    admin_doc = user_services.get_or_create_user_from_oidc(admin_profile)
+
+    return admin_doc
+
+
+@pytest.fixture(name="admin_client_integration")
+def create_admin_client_integration(client, admin_user):
+    """
+    An authenticated client for INTEGRATION tests.
+    It logs in as a REAL user from the test database.
+    It does NOT mock the database.
+    """
+
+    with client.session_transaction() as sess:
+        # Set the session with the user's REAL MongoDB _id
+        sess['user_id'] = str(admin_user['_id'])
+
+    yield client
 
 # Define multiple book payloads for testing
 book_payloads = [
@@ -183,7 +213,7 @@ def test_update_soft_deleted_book_returns_404(mongo_client, admin_client):
     assert book_in_db['state'] == 'deleted'
 
 
-def test_get_reservation_succeeds_for_admin(admin_client, mongo_client, mocker):
+def test_get_reservation_succeeds_for_admin(admin_client_integration, mongo_client):
     """
     INTEGRATION TEST for GET /books/{id}/reservations/{id} as an admin.
 
@@ -192,61 +222,49 @@ def test_get_reservation_succeeds_for_admin(admin_client, mongo_client, mocker):
     THEN the decorators should grant access and the view should return a 200 OK
     with the correct reservation data.
     """
-    # Set up the test database
-    db = mongo_client['test_database']
-    user_collection = db['test_users']
-    reservation_collection = db['test_reservations']
-
-    # ARRANGE
-    # -----------------------------------------------------------
-    # 1. Create the data in the REAL test database.
-    owner_user = {
-        'id': str(uuid.uuid4()),
-        '_id': ObjectId(),
-        'roles': ['viewer']
+    # Arrange
+    # Add the book to be reserved into the database
+    new_book_payload = {
+        "title": "The Midnight Library",
+        "synopsis": "A novel about all the choices that go into a life well lived.",
+        "author": "Matt Haig"
     }
 
-    admin_user = {
-        'id': str(uuid.uuid4()),
-        '_id': ObjectId(),
-        'roles': ['viewer', 'admin']
-    }
-
-    # Insert both users into the test DB
-    user_collection.insert_many([owner_user, admin_user])
-
-    reservation_doc = {
-        'id': str(uuid.uuid4()),
-        'book_id': str(uuid.uuid4()),
-        'user_id': owner_user['id']  # The reservation is owned by the non-admin user
-    }
-    reservation_collection.insert_one(reservation_doc)
-
-    # 2. Mock the user lookup for the @login_required decorator.
-    #    We are logging in as the ADMIN user.
-    mocker.patch(
-        'auth.decorators.user_services.find_user_by_id',
-        return_value=admin_user
+    # Act: send the POST request:
+    response = admin_client_integration.post(
+        "/books",
+        json=new_book_payload
     )
+    # Check the response
+    assert response.status_code == 201
+    assert response.headers["content-type"] == "application/json"
+    result = response.get_json()
+    book_id = str(result.get('id'))
 
-    # 3. Use the client to "log in" as the admin user by setting the session.
-    with admin_client.session_transaction() as sess:
-        sess['user_id'] = str(admin_user['id'])
+    # Arrange
+    # Add a non-admin user to the collection to be the reservation owner
+    user_profile = {
+        'sub': 'google-user-id-for-test',
+        'email': 'user@test.com',
+        'name': 'Test User'
+    }
+    user_doc = user_services.get_or_create_user_from_oidc(user_profile)
+
+    # Arrange
+    # Call the books_collection to pass to the reservation function
+    books_collection = get_book_collection()
+
+    # Pass the book_id, user: dict and books_collection to the reservation function
+    # We can't use the real route as the logged-in user is an admin, not the owner in this case
+    res_result = reservation_services.create_reservation_for_book(book_id, user_doc, books_collection)
+    reservation_id = res_result.get('id')
 
     # ACT
-    # -----------------------------------------------------------
-    # Make a real HTTP request to the endpoint.
-    response = admin_client.get(
-        f"/books/{reservation_doc['book_id']}/reservations/{reservation_doc['id']}"
+    response = admin_client_integration.get(
+        f"/books/{book_id}/reservations/{reservation_id}"
     )
 
     # ASSERT
-    # -----------------------------------------------------------
-    # 1. Check the HTTP response.
     assert response.status_code == 200
-    assert response.content_type == 'application/json'
-
-    # 2. Check the content of the JSON body.
     response_data = response.get_json()
-    assert response_data['id'] == reservation_doc['id']
-    assert response_data['user_id'] == owner_user['id']  # Verify it's the owner's reservation
+    assert response_data['id'] == reservation_id

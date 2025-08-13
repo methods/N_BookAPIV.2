@@ -72,7 +72,6 @@ def reservation_owner_or_admin_required(f):
         # Check for logged in admin or user match
         is_admin = 'admin' in current_user.get('roles', [])
         is_owner = (owner_id and user_id and owner_id == user_id)
-
         if is_admin or is_owner:
             # If authorized, call the original view function
             return f(*args, **kwargs)

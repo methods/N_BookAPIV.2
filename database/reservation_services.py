@@ -73,8 +73,6 @@ def create_reservation_for_book(book_id, user: dict, books_collection):
     created_reservation.pop('_id', None)
     created_reservation.pop('user_id', None)
     created_reservation['reservedAt'] = created_reservation['reservedAt'].isoformat()
-    print(created_reservation)
-
     return created_reservation
 
 def find_reservation_by_id(reservation_id):

@@ -110,7 +110,6 @@ def add_book():
     host = request.host_url
     # Send the host and new book_id to the helper function to generate links
     book_for_response = append_hostname(new_book, host)
-    print("book_for_response", book_for_response)
     # Remove MOngoDB's ObjectID value
     book_for_response.pop('_id', None)
 
@@ -221,8 +220,9 @@ def get_reservation(book_id, reservation_id):
     if the reservation is owned by the current user,
     or if the current user is an admin.
     """
-    print("Nothing here yet")
-    return
+    reservation_to_return = g.reservation
+
+    return jsonify(reservation_to_return), 200
 
 # ----------- DELETE section ------------------
 @app.route("/books/<string:book_id>", methods=["DELETE"])
