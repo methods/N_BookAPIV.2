@@ -53,34 +53,75 @@ def mongo_client_fixture():
     # Clean up the mongoDB after the test
     client.drop_database("test_database")
 
-@pytest.fixture(name="admin_user")
-def make_admin_user(mongo_client):
-    """Creates a real admin user in the test database and returns the document."""
-    # 1. Define the OIDC profile for the user we want to create.
-    admin_profile = {
-        'sub': 'google-admin-id-for-test',
-        'email': 'admin@test.com',
-        'name': 'Test Admin',
-        'test_role': 'admin'
-    }
-    admin_doc = user_services.get_or_create_user_from_oidc(admin_profile)
+# @pytest.fixture(name="admin_user")
+# def make_admin_user(mongo_client):
+#     """Creates a real admin user in the test database and returns the document."""
+#     # 1. Define the OIDC profile for the user we want to create.
+#     admin_profile = {
+#         'sub': 'google-admin-id-for-test',
+#         'email': 'admin@test.com',
+#         'name': 'Test Admin',
+#         'test_role': 'admin'
+#     }
+#     admin_doc = user_services.get_or_create_user_from_oidc(admin_profile)
+#
+#     return admin_doc
+#
+#
+# @pytest.fixture(name="admin_client_integration")
+# def create_admin_client_integration(client, admin_user):
+#     """
+#     An authenticated client for INTEGRATION tests.
+#     It logs in as a REAL user from the test database.
+#     It does NOT mock the database.
+#     """
+#
+#     with client.session_transaction() as sess:
+#         # Set the session with the user's REAL MongoDB _id
+#         sess['user_id'] = str(admin_user['_id'])
+#
+#     yield client
 
-    return admin_doc
-
-
-@pytest.fixture(name="admin_client_integration")
-def create_admin_client_integration(client, admin_user):
+@pytest.fixture(name="user_factory")
+def test_user_factory():
     """
-    An authenticated client for INTEGRATION tests.
-    It logs in as a REAL user from the test database.
-    It does NOT mock the database.
+    A factory fixture that returns a function for creating users.
+    This allows tests to create multiple, distinct users.
     """
 
-    with client.session_transaction() as sess:
-        # Set the session with the user's REAL MongoDB _id
-        sess['user_id'] = str(admin_user['_id'])
+    def _create_user(role='viewer', name='Test User'):
+        """The actual factory function."""
+        profile = {
+            # Use the name to make the 'sub' and 'email' unique for each user
+            'sub': f"google-id-{name.replace(' ', '-').lower()}",
+            'email': f"{name.replace(' ', '.').lower()}@example.com",
+            'name': name
+        }
+        # Add the special 'test_role' if we want to create an admin
+        if role == 'admin':
+            profile['test_role'] = 'admin'
 
-    yield client
+        # Use the service layer to create the user in the test database
+        user_doc = user_services.get_or_create_user_from_oidc(profile)
+        return user_doc
+
+    # The fixture returns the inner function
+    return _create_user
+
+@pytest.fixture(name="authenticated_client")
+def authenticated_client_for_testing(client):
+    """
+    A factory fixture that returns a function to create an authenticated
+    client for a given user document.
+    """
+
+    def _create_authenticated_client(user_doc):
+        """Logs in the given user."""
+        with client.session_transaction() as sess:
+            sess['user_id'] = str(user_doc['_id'])
+        return client  # Return the now-authenticated client
+
+    return _create_authenticated_client
 
 # Define multiple book payloads for testing
 book_payloads = [
@@ -213,7 +254,7 @@ def test_update_soft_deleted_book_returns_404(mongo_client, admin_client):
     assert book_in_db['state'] == 'deleted'
 
 
-def test_get_reservation_succeeds_for_admin(admin_client_integration, mongo_client):
+def test_get_reservation_succeeds_for_admin(authenticated_client, user_factory, mongo_client):
     """
     INTEGRATION TEST for GET /books/{id}/reservations/{id} as an admin.
 
@@ -223,6 +264,12 @@ def test_get_reservation_succeeds_for_admin(admin_client_integration, mongo_clie
     with the correct reservation data.
     """
     # Arrange
+    # 1. Create the two users we need using the factory.
+    owner_user = user_factory(role='viewer', name='Owner User')
+    admin_user = user_factory(role='admin', name='Admin User')
+    # 2. Create a client that is logged in as the ADMIN.
+    test_client = authenticated_client(admin_user)
+
     # Add the book to be reserved into the database
     new_book_payload = {
         "title": "The Midnight Library",
@@ -231,7 +278,7 @@ def test_get_reservation_succeeds_for_admin(admin_client_integration, mongo_clie
     }
 
     # Act: send the POST request:
-    response = admin_client_integration.post(
+    response = test_client.post(
         "/books",
         json=new_book_payload
     )
@@ -260,7 +307,7 @@ def test_get_reservation_succeeds_for_admin(admin_client_integration, mongo_clie
     reservation_id = res_result.get('id')
 
     # ACT
-    response = admin_client_integration.get(
+    response = test_client.get(
         f"/books/{book_id}/reservations/{reservation_id}"
     )
 
