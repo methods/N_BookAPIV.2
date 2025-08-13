@@ -258,10 +258,9 @@ def test_reservation_owner_or_admin_decorator_allows_owner_unit(mocker, _client)
     # ARRANGE
     # 1. Define the fake data. The key is that the user's public 'id'
     #    matches the 'user_id' in the reservation document.
-    fake_user_public_id = "user-uuid-123"
+    fake_owner_id = str(ObjectId())
     fake_user_doc = {
-        '_id': ObjectId(),
-        'id': fake_user_public_id,
+        '_id': fake_owner_id,
         'email': 'owner@test.com',
         'roles': ['viewer'] # This user is NOT an admin
     }
@@ -270,7 +269,7 @@ def test_reservation_owner_or_admin_decorator_allows_owner_unit(mocker, _client)
     fake_reservation_doc = {
         '_id': ObjectId(),
         'id': fake_reservation_id,
-        'user_id': fake_user_public_id, # Link to the owner
+        'user_id': fake_owner_id, # Link to the owner
         'book_id': str(uuid.uuid4())
     }
 

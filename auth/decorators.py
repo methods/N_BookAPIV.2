@@ -68,6 +68,14 @@ def reservation_owner_or_admin_required(f):
         owner_id = resource.get('user_id')
         user_id = current_user.get('_id')
 
+        print(f"Logging in as {current_user}")
+        # === DEBUGGING BLOCK ===
+        print("--- DECORATOR DEBUG ---")
+        print(f"owner_id: {owner_id} (type: {type(owner_id)})")
+        print(f"user_id:  {user_id} (type: {type(user_id)})")
+        print(f"Are they equal? {owner_id == user_id}")
+        print("-----------------------")
+
         # Check for logged in admin or user match
         is_admin = 'admin' in current_user.get('roles', [])
         is_owner = (owner_id and user_id and owner_id == user_id)
