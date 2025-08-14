@@ -121,6 +121,24 @@ def authenticated_client_for_testing(client):
 
     return _create_authenticated_client
 
+
+@pytest.fixture(name="logout_client")
+def logged_out_client(client):
+    """
+    Provides a test client that is guaranteed to have an empty/invalid session,
+    simulating a logged-out user or a new visitor.
+    """
+    # Open a session transaction. This is crucial because it ensures
+    # the client is interacting with the session machinery.
+    def _create_logged_out_client(user_doc):
+        """Logs in the given user."""
+        with client.session_transaction() as sess:
+            sess['user_id'] = str(user_doc['_id'])
+            sess['user_id'] = None
+        return client  # Return the now-authenticated client
+
+    return _create_logged_out_client
+
 # Define multiple book payloads for testing
 book_payloads = [
     {
@@ -417,3 +435,52 @@ def test_get_reservation_fails_for_user_not_admin_or_owner(authenticated_client,
     assert response_data["code"] == 403
     assert response_data["name"] == "Forbidden"
     assert "don't have the permission" in response_data["description"]
+
+def test_get_reservation_with_anonymous_user_redirects_to_login(
+        authenticated_client,
+        user_factory,
+        logout_client
+):
+    """
+    GIVEN no logged-in user
+    WHEN a GET request is made to the reservation's specific URL
+    THEN the login_required decorator should deny access
+    AND the view should return a 302 redirect to the login page.
+    """
+    # Arrange
+    # Create an admin user to add the book to the database and create a reservation
+    admin_user = user_factory(role='admin', name='Admin User')
+    test_admin_client = authenticated_client(admin_user)
+
+    response = test_admin_client.post(
+        "/books",
+        json=book_payloads[1]
+    )
+    # Check the book was added correctly and get the book_id created
+    assert response.status_code == 201
+    assert response.headers["content-type"] == "application/json"
+    result = response.get_json()
+    book_id = str(result.get('id'))
+
+    # Create a reservation using the logged in admin user
+    res_response = test_admin_client.post(
+        f"/books/{book_id}/reservations"
+    )
+    # Check the reservation was added and get the reservation_id
+    assert res_response.status_code == 201
+    res_data = res_response.get_json()
+    reservation_id = res_data.get('id')
+
+    # Create a session with a logged out user
+    invisible_user = user_factory(role='viewer', name='Invisible User')
+    anon_client = logout_client(invisible_user)
+    # Act
+    # Attempt to access the reservation GET endpoint while not logged in
+    response = anon_client.get(
+        f"/books/{book_id}/reservations/{reservation_id}"
+    )
+
+    # Assert
+    # Was the attempt redirected?
+    assert response.status_code == 302
+    assert 'http://localhost:5000/auth/login' in response.location
