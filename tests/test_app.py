@@ -3,7 +3,6 @@ import os
 import uuid
 from datetime import datetime, timezone
 from unittest.mock import patch
-from bson.objectid import ObjectId
 from pymongo.errors import ServerSelectionTimeoutError
 import pytest
 from database.reservation_services import BookNotAvailableForReservationError

@@ -7,7 +7,10 @@ from bson.objectid import ObjectId
 import pytest
 from pymongo.errors import ConnectionFailure
 from database import reservation_services
-from database.reservation_services import BookNotAvailableForReservationError, ReservationNotFoundError
+from database.reservation_services import (
+    BookNotAvailableForReservationError,
+    ReservationNotFoundError
+)
 from app import app
 
 def test_create_reservation_for_book(mocker):
@@ -358,7 +361,7 @@ def test_find_reservation_by_id_raises_error_when_not_found(mocker):
     #    simulating a document that is not found.
     mock_reservations_collection.find_one.return_value = None
 
-    # 3. An ID to search for. The actual value doesn't matter since the mock will always return None.
+    # 3. An ID to search for - the mock will return None anyway
     non_existent_uuid = str(uuid.uuid4())
 
     # ACT & ASSERT

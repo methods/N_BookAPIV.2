@@ -1,11 +1,9 @@
 # pylint: disable=missing-docstring
 import os
-import uuid
-from flask import g
 from bson.objectid import ObjectId
 import pytest
 from pymongo import MongoClient
-from database import user_services, reservation_services, mongo_helper
+from database import user_services, reservation_services
 from app import app, get_book_collection
 
 # pylint: disable=R0801
@@ -254,7 +252,7 @@ def test_update_soft_deleted_book_returns_404(mongo_client, admin_client):
     assert book_in_db['state'] == 'deleted'
 
 
-def test_get_reservation_succeeds_for_admin(authenticated_client, user_factory, mongo_client):
+def test_get_reservation_succeeds_for_admin(authenticated_client, user_factory):
     """
     INTEGRATION TEST for GET /books/{id}/reservations/{id} as an admin.
 
@@ -289,21 +287,19 @@ def test_get_reservation_succeeds_for_admin(authenticated_client, user_factory, 
     book_id = str(result.get('id'))
 
     # Arrange
-    # Add a non-admin user to the collection to be the reservation owner
-    user_profile = {
-        'sub': 'google-user-id-for-test',
-        'email': 'user@test.com',
-        'name': 'Test User'
-    }
-    user_doc = user_services.get_or_create_user_from_oidc(user_profile)
+    # Get the user_doc for the owner of the reservation to be created
+    user_doc = owner_user
 
-    # Arrange
     # Call the books_collection to pass to the reservation function
     books_collection = get_book_collection()
 
     # Pass the book_id, user: dict and books_collection to the reservation function
     # We can't use the real route as the logged-in user is an admin, not the owner in this case
-    res_result = reservation_services.create_reservation_for_book(book_id, user_doc, books_collection)
+    res_result = reservation_services.create_reservation_for_book(
+        book_id,
+        user_doc,
+        books_collection
+    )
     reservation_id = res_result.get('id')
 
     # ACT

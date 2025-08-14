@@ -94,4 +94,3 @@ def find_reservation_by_id(reservation_id):
     result['user_id'] = str(result['user_id'])
     result['reservedAt'] = result['reservedAt'].isoformat()
     return result
-

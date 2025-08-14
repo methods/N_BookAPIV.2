@@ -288,7 +288,7 @@ def test_reservation_owner_or_admin_decorator_allows_owner_unit(mocker, _client)
 
         # 5. Define a fake view function and apply our decorator to it.
         @reservation_owner_or_admin_required
-        def fake_protected_view(reservation_id):
+        def fake_protected_view(reservation_id): # pylint: disable=unused-argument
             # This is the code that will run if the decorator allows access.
             # We can use it to prove that g.reservation was set correctly.
             return f"Success for reservation {g.reservation['id']}"
@@ -350,7 +350,7 @@ def test_reservation_decorator_aborts_404_if_resource_not_found(mocker, _client)
         g.user = {'roles': ['viewer'], 'id': 'some-user-id'}
 
         @reservation_owner_or_admin_required
-        def fake_view(reservation_id):
+        def fake_view(reservation_id): # pylint: disable=unused-argument
             pass
 
         # ACT & ASSERT
@@ -387,7 +387,7 @@ def test_reservation_decorator_aborts_403_for_unauthorized_user(mocker, _client)
         g.user = unauthorized_user
 
         @reservation_owner_or_admin_required
-        def fake_view(reservation_id):
+        def fake_view(reservation_id): # pylint: disable=unused-argument
             pass
 
         # ACT & ASSERT

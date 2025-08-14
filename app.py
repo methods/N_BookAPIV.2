@@ -214,7 +214,7 @@ def get_book(book_id):
 @app.route("/books/<string:book_id>/reservations/<string:reservation_id>", methods=["GET"])
 @login_required
 @reservation_owner_or_admin_required
-def get_reservation(book_id, reservation_id):
+def get_reservation(book_id, reservation_id): # pylint: disable=unused-argument
     """
     Retrieve a specific reservation by its unique ID,
     if the reservation is owned by the current user,

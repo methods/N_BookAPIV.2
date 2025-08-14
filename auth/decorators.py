@@ -74,7 +74,6 @@ def reservation_owner_or_admin_required(f):
         if is_admin or is_owner:
             # If authorized, call the original view function
             return f(*args, **kwargs)
-        else:
-            # If not authorized, 403 Forbidden
-            abort(403)
+        # If not authorized, 403 Forbidden
+        abort(403)
     return decorated_function
