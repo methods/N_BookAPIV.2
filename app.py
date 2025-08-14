@@ -3,10 +3,12 @@
 import uuid
 import copy
 import os
+import sys
+import traceback
 from urllib.parse import urljoin
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, g
-from werkzeug.exceptions import NotFound
+from werkzeug.exceptions import HTTPException
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 from database.mongo_helper import (
@@ -279,12 +281,30 @@ def update_book(book_id):
         return jsonify(append_hostname(book_copy, host)), 200
     return jsonify({"error": "Book not found"}), 404
 
-@app.errorhandler(NotFound)
-def handle_not_found(e):
-    """Return a custom JSON response for 404 Not Found errors."""
-    return jsonify({"error": str(e)}), 404
+@app.errorhandler(HTTPException)
+def handle_http_exception(e):
+    """
+    Return JSON instead of HTML for HTTP errors.
+    This handler preserves the original status code of the exception.
+    """
+    # Create a JSON response
+    response = {
+        "code": e.code,
+        "name": e.name,
+        "description": e.description,
+    }
+    return jsonify(response), e.code
+
 
 @app.errorhandler(Exception)
-def handle_exception(e):
-    """Return a custom JSON response for any exception."""
-    return jsonify({"error": str(e)}), 500
+def handle_exception(e): # pylint: disable=unused-argument
+    """
+    Catches unhandled exceptions, prints the traceback to stderr,
+    and returns a generic 500 JSON response.
+    """
+    # Print the full exception traceback to the console (stderr)
+    # This gives you the same detailed debugging info as logging.exception()
+    traceback.print_exc(file=sys.stderr)
+
+    # Return a generic, user-friendly error message
+    return jsonify({"error": "An internal server error occurred."}), 500

@@ -185,23 +185,6 @@ def test_add_book_check_request_header_is_json(admin_client):
     assert response.status_code == 415
     assert "Request must be JSON" in response.get_json()["error"]
 
-def test_500_response_is_json(admin_client):
-    test_book = {
-        "title": "Valid Title",
-        "author": "AN Other",
-        "synopsis": "Test Synopsis"
-    }
-
-    # Use patch to mock uuid module failing and throwing an exception
-    with patch("uuid.uuid4", side_effect=Exception("An unexpected error occurred")):
-        response = admin_client.post("/books", json = test_book)
-
-        # Check the response code is 500
-        assert response.status_code == 500
-
-        assert response.content_type == "application/json"
-        assert "An unexpected error occurred" in response.get_json()["error"]
-
 def test_add_reservation_view_on_success(mocker, viewer_only_client):
     """
     GIVEN a logged-in user and a valid payload
@@ -342,8 +325,10 @@ def test_get_all_books_returns_500_if_service_returns_none(mocker, client):
 
     response = client.get("/books")
     assert response.status_code == 500
-    assert "error" in response.get_json()
-    assert "cannot unpack non-iterable NoneType object" in response.get_json()["error"]
+    assert response.content_type == "application/json"
+    response_data = response.get_json()
+    assert "error" in response_data
+    assert response_data["error"] == "An internal server error occurred."
 
 def test_missing_fields_in_book_object_returned_by_database(mocker, client):
     # Arrange
@@ -481,7 +466,13 @@ def test_invalid_urls_return_404(client):
     response = client.get("/books/")
     assert response.status_code == 404
     assert response.content_type == "application/json"
-    assert "404 Not Found" in response.get_json()["error"]
+    response_data = response.get_json()
+    # Assert that the values are correct for a 404.
+    assert "code" in response_data
+    assert "name" in response_data
+    assert "description" in response_data
+    assert response_data["code"] == 404
+    assert response_data["name"] == "Not Found"
 
 def test_get_book_returns_404_if_state_equals_deleted(mocker, client):
     # Mock the service function in app.py that get_book depends on
