@@ -311,3 +311,58 @@ def test_get_reservation_succeeds_for_admin(authenticated_client, user_factory):
     assert response.status_code == 200
     response_data = response.get_json()
     assert response_data['id'] == reservation_id
+
+def test_get_reservation_succeeds_for_owner_not_admin(authenticated_client, user_factory):
+    """
+     INTEGRATION TEST for GET /books/{id}/reservations/{id} as a user who owns the reservation.
+
+    GIVEN a logged-in user and an existing reservation owned by that user
+    WHEN a GET request is made to the reservation's specific URL
+    THEN the decorators should grant access and the view should return a 200 OK
+    with the correct reservation data.
+    """
+    # Arrange
+    # Create the owner user and log them in
+    owner_user = user_factory(role='viewer', name='Owner User')
+    owner_client = authenticated_client(owner_user)
+
+    # And create an admin user to add the book to the database...
+    admin_user = user_factory(role='admin', name='Admin User')
+    test_admin_client = authenticated_client(admin_user)
+    # Add the book to be reserved into the database
+    new_book_payload = {
+        "title": "Becoming",
+        "synopsis": "An autobiography by the former First Lady "
+                    "of the United States, Michelle Obama.",
+        "author": "Michelle Obama"
+    }
+
+    # ...using the actual route
+    response = test_admin_client.post(
+        "/books",
+        json=new_book_payload
+    )
+    # Check the book was added correctly and get the book_id created
+    assert response.status_code == 201
+    assert response.headers["content-type"] == "application/json"
+    result = response.get_json()
+    book_id = str(result.get('id'))
+
+    # Create the reservation - using the real route as the non-admin owner
+    res_response = owner_client.post(
+        f"/books/{book_id}/reservations"
+    )
+    # Check the reservation was added and get the reservation_id
+    assert res_response.status_code == 201
+    res_data = res_response.get_json()
+    reservation_id = res_data.get('id')
+
+    # Act - attempt to access the reservation logged in as the owner
+    response = owner_client.get(
+        f"/books/{book_id}/reservations/{reservation_id}"
+    )
+
+    # Assert - was the reservation correctly accessed?
+    assert response.status_code == 200
+    response_data = response.get_json()
+    assert response_data['id'] == reservation_id
