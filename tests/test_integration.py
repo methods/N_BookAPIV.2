@@ -366,3 +366,54 @@ def test_get_reservation_succeeds_for_owner_not_admin(authenticated_client, user
     assert response.status_code == 200
     response_data = response.get_json()
     assert response_data['id'] == reservation_id
+
+def test_get_reservation_fails_for_user_not_admin_or_owner(authenticated_client, user_factory):
+    """
+     INTEGRATION TEST for GET /books/{id}/reservations/{id} as a user
+     who does not own the reservation.
+
+    GIVEN a logged-in user and an existing reservation owned a different user
+    WHEN a GET request is made to the reservation's specific URL
+    THEN the decorators should deny access and the view should return a 200 OK
+    with the correct reservation data.
+    """
+    # Arrange
+    # Create an admin user to add the book to the database and create a reservation
+    admin_user = user_factory(role='admin', name='Admin User')
+    test_admin_client = authenticated_client(admin_user)
+
+    response = test_admin_client.post(
+        "/books",
+        json=book_payloads[1]
+    )
+    # Check the book was added correctly and get the book_id created
+    assert response.status_code == 201
+    assert response.headers["content-type"] == "application/json"
+    result = response.get_json()
+    book_id = str(result.get('id'))
+
+    # Create a reservation using the logged in admin user
+    res_response = test_admin_client.post(
+        f"/books/{book_id}/reservations"
+    )
+    # Check the reservation was added and get the reservation_id
+    assert res_response.status_code == 201
+    res_data = res_response.get_json()
+    reservation_id = res_data.get('id')
+
+    # Create a non-admin user who does not own the reservation
+    non_owner_user = user_factory(role='viewer', name='Non-Owner User')
+    non_owner_client = authenticated_client(non_owner_user)
+
+    # Act - attempt to access the reservation logged in as the non_owner
+    response = non_owner_client.get(
+        f"/books/{book_id}/reservations/{reservation_id}"
+    )
+
+    # Assert - was the reservation view denied?
+    assert response.status_code == 403
+    assert response.content_type == "application/json"
+    response_data = response.get_json()
+    assert response_data["code"] == 403
+    assert response_data["name"] == "Forbidden"
+    assert "don't have the permission" in response_data["description"]
