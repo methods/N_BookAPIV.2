@@ -2,6 +2,7 @@
 from functools import wraps
 from flask import session, redirect, g, abort
 from database import user_services, reservation_services
+from database.reservation_services import ReservationNotFoundError
 
 def login_required(f):
     """
@@ -57,8 +58,9 @@ def reservation_owner_or_admin_required(f):
         if not query_reservation_id:
             abort(500, "Decorator couldn't find reservation ID in URL.")
         # Use the service function to query the collection
-        resource = reservation_services.find_reservation_by_id(query_reservation_id)
-        if not resource:
+        try:
+            resource = reservation_services.find_reservation_by_id(query_reservation_id)
+        except ReservationNotFoundError:
             abort(404, "Resource not found.")
         # Get the user's id field from Flask's g object
         current_user = g.user

@@ -9,6 +9,7 @@ from werkzeug.exceptions import InternalServerError, NotFound, Forbidden
 from auth.decorators import login_required, roles_required, reservation_owner_or_admin_required
 import auth.services as auth_services
 from auth.services import AuthServiceError
+from database.reservation_services import ReservationNotFoundError
 from app import app
 
 @pytest.fixture(name="_client")
@@ -341,7 +342,7 @@ def test_reservation_decorator_aborts_404_if_resource_not_found(mocker, _client)
     mock_find_reservation = mocker.patch(
         'auth.decorators.reservation_services.find_reservation_by_id'
     )
-    mock_find_reservation.return_value = None
+    mock_find_reservation.side_effect = ReservationNotFoundError("Test not found")
 
     non_existent_uuid = "non-existent-uuid-123"
 

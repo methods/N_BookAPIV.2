@@ -1,5 +1,6 @@
 # pylint: disable=missing-docstring
 import os
+import uuid
 from bson.objectid import ObjectId
 import pytest
 from pymongo import MongoClient
@@ -484,3 +485,50 @@ def test_get_reservation_with_anonymous_user_redirects_to_login(
     # Was the attempt redirected?
     assert response.status_code == 302
     assert 'http://localhost:5000/auth/login' in response.location
+
+def test_get_reservation_with_non_existent_id_returns_404(authenticated_client, user_factory):
+    """
+    GIVEN a logged-in admin user and a correct book_id
+    AND a reservation UUID that is valid in format but does not exist in the database
+    WHEN a GET request is made to the reservation's specific URL
+    THEN the application should return a 404 Not Found response.
+    """
+    # Arrange
+    # Create the admin user and client
+    admin_user = user_factory(role='admin', name='Admin User')
+    test_admin_client = authenticated_client(admin_user)
+    # Add a book to the database, check it and retrieve the id
+    response = test_admin_client.post(
+        "/books",
+        json=book_payloads[1]
+    )
+    # Check the book was added correctly and get the book_id created
+    assert response.status_code == 201
+    assert response.headers["content-type"] == "application/json"
+    result = response.get_json()
+    book_id = str(result.get('id'))
+
+    # Create a reservation using the logged in admin user
+    res_response = test_admin_client.post(
+        f"/books/{book_id}/reservations"
+    )
+    # Check the reservation was added and get the reservation_id
+    assert res_response.status_code == 201
+    res_data = res_response.get_json()
+    reservation_id = res_data.get('id')
+
+    # Create a correctly formatted uuid and check it DOESN'T match the real one
+    wrong_res_id = str(uuid.uuid4())
+    assert wrong_res_id != reservation_id
+
+    # Act
+    # Attempt to access the reservation endpoint with the wrong_res_id
+    response = test_admin_client.get(
+        f"/books/{book_id}/reservations/{wrong_res_id}"
+    )
+
+    # Assert
+    assert response.status_code == 404
+    assert response.headers["content-type"] == "application/json"
+    result = response.get_json()
+    assert "not found" in result.get("description")
