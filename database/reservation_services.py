@@ -110,10 +110,6 @@ def find_reservation_by_id(reservation_id):
             f"Reservation with ID {reservation_id} cannot be found in the database."
         )
     # Prepare the returned reservation document for output and return it
-    # result.pop('_id', None)
-    # # result.pop('user_id', None)
-    # result['user_id'] = str(result['user_id'])
-    # result['reservedAt'] = result['reservedAt'].isoformat()
     return _process_reservation_for_api(result)
 
 def cancel_reservation_by_id(reservation_id):
@@ -143,6 +139,7 @@ def cancel_reservation_by_id(reservation_id):
     )
     # Process and return the updated_doc or raise an error if it's None
     if not updated_doc:
-        raise ReservationNotFoundError(...)
-
+        raise ReservationNotFoundError(
+            f"Reservation with ID {reservation_id} cannot be found in the database."
+        )
     return _process_reservation_for_api(updated_doc)
