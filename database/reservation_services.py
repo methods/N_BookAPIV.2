@@ -94,3 +94,9 @@ def find_reservation_by_id(reservation_id):
     result['user_id'] = str(result['user_id'])
     result['reservedAt'] = result['reservedAt'].isoformat()
     return result
+
+def cancel_reservation_by_id(reservation_id):
+    """
+    Find a reservation record by its 'id' field and update it as 'cancelled'.
+    """
+    pass

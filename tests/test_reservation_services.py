@@ -376,3 +376,57 @@ def test_find_reservation_by_id_raises_error_when_not_found(mocker):
 
     # We can also verify that the database was queried correctly before the exception was raised.
     mock_reservations_collection.find_one.assert_called_once_with({'id': non_existent_uuid})
+
+def test_cancel_reservation_by_id_success_path(mocker):
+    """
+    UNIT TEST for cancel_reservation_by_id happy path.
+
+    GIVEN a valid reservation ID (string UUID)
+    WHEN the cancel_reservation_by_id service is called
+    AND a matching document is found in the (mocked) database
+    THEN it should call find_one_and_update with the correct query and update document
+    AND return the processed, now-cancelled reservation document
+    """
+    # NOTE - test written by AI from docstring
+    # ARRANGE
+    # 1. Mock the collection.
+    mock_collection = MagicMock()
+    mocker.patch(
+        'database.reservation_services.get_reservations_collection',
+        return_value=mock_collection
+    )
+
+    # 2. Set up the "before" state of the reservation in your fake DB.
+    reservation_uuid = str(uuid.uuid4())
+    fake_reservation_in_db = {
+        '_id': ObjectId(),
+        'id': reservation_uuid,
+        'state': 'reserved'  # It starts as 'reserved'
+    }
+
+    # 3. Create a stateful side_effect for find_one_and_update.
+    def find_one_and_update_side_effect(filter_check, update_doc, **kwargs):
+        # Check if the filter matches the state of our fake DB
+        if filter_check['id'] == fake_reservation_in_db['id'] and \
+                fake_reservation_in_db.get('state') == 'reserved':
+            # If it matches, simulate the update
+            changes = update_doc.get('$set', {})
+            updated_doc = fake_reservation_in_db.copy()
+            updated_doc.update(changes)
+            return updated_doc
+        return None
+
+    mock_collection.find_one_and_update.side_effect = find_one_and_update_side_effect
+
+    # ACT
+    result = reservation_services.cancel_reservation_by_id(reservation_uuid)
+
+    # ASSERT
+    # 1. Was find_one_and_update called with the correct query and update?
+    mock_collection.find_one_and_update.assert_called_once()
+    call_args = mock_collection.find_one_and_update.call_args
+    assert call_args[0][0]['state'] == 'reserved'  # Check it's looking for active reservations
+    assert call_args[0][1]['$set']['state'] == 'cancelled'
+
+    # 2. Did the returned document have the new, correct state?
+    assert result['state'] == 'cancelled'
