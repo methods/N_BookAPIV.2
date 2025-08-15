@@ -52,35 +52,6 @@ def mongo_client_fixture():
     # Clean up the mongoDB after the test
     client.drop_database("test_database")
 
-# @pytest.fixture(name="admin_user")
-# def make_admin_user(mongo_client):
-#     """Creates a real admin user in the test database and returns the document."""
-#     # 1. Define the OIDC profile for the user we want to create.
-#     admin_profile = {
-#         'sub': 'google-admin-id-for-test',
-#         'email': 'admin@test.com',
-#         'name': 'Test Admin',
-#         'test_role': 'admin'
-#     }
-#     admin_doc = user_services.get_or_create_user_from_oidc(admin_profile)
-#
-#     return admin_doc
-#
-#
-# @pytest.fixture(name="admin_client_integration")
-# def create_admin_client_integration(client, admin_user):
-#     """
-#     An authenticated client for INTEGRATION tests.
-#     It logs in as a REAL user from the test database.
-#     It does NOT mock the database.
-#     """
-#
-#     with client.session_transaction() as sess:
-#         # Set the session with the user's REAL MongoDB _id
-#         sess['user_id'] = str(admin_user['_id'])
-#
-#     yield client
-
 @pytest.fixture(name="user_factory")
 def test_user_factory():
     """
@@ -126,7 +97,7 @@ def authenticated_client_for_testing(client):
 @pytest.fixture(name="logout_client")
 def logged_out_client(client):
     """
-    Provides a test client that is guaranteed to have an empty/invalid session,
+    Provides a test client that has a session with user_id set to None,
     simulating a logged-out user or a new visitor.
     """
     # Open a session transaction. This is crucial because it ensures
@@ -172,17 +143,10 @@ def test_post_route_inserts_to_mongodb(mongo_client, admin_client):
     db = mongo_client['test_database']
     collection = db['test_books']
 
-    # Arrange: Test book object
-    new_book_payload = {
-        "title": "The Midnight Library",
-        "synopsis": "A novel about all the choices that go into a life well lived.",
-        "author": "Matt Haig"
-    }
-
     # Act: send the POST request:
     response = admin_client.post(
         "/books", 
-        json=new_book_payload
+        json=book_payloads[0]
     )
 
     # Assert:
@@ -287,17 +251,10 @@ def test_get_reservation_succeeds_for_admin(authenticated_client, user_factory):
     # 2. Create a client that is logged in as the ADMIN.
     test_client = authenticated_client(admin_user)
 
-    # Add the book to be reserved into the database
-    new_book_payload = {
-        "title": "The Midnight Library",
-        "synopsis": "A novel about all the choices that go into a life well lived.",
-        "author": "Matt Haig"
-    }
-
-    # Act: send the POST request:
+    # Act: send the POST request to add the book to be reserved into the database
     response = test_client.post(
         "/books",
-        json=new_book_payload
+        json=book_payloads[0]
     )
     # Check the response
     assert response.status_code == 201
@@ -348,18 +305,10 @@ def test_get_reservation_succeeds_for_owner_not_admin(authenticated_client, user
     # And create an admin user to add the book to the database...
     admin_user = user_factory(role='admin', name='Admin User')
     test_admin_client = authenticated_client(admin_user)
-    # Add the book to be reserved into the database
-    new_book_payload = {
-        "title": "Becoming",
-        "synopsis": "An autobiography by the former First Lady "
-                    "of the United States, Michelle Obama.",
-        "author": "Michelle Obama"
-    }
-
-    # ...using the actual route
+    # Add the book to be reserved into the database using the actual route
     response = test_admin_client.post(
         "/books",
-        json=new_book_payload
+        json=book_payloads[1]
     )
     # Check the book was added correctly and get the book_id created
     assert response.status_code == 201
