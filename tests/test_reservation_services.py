@@ -405,7 +405,7 @@ def test_cancel_reservation_by_id_success_path(mocker):
     }
 
     # 3. Create a stateful side_effect for find_one_and_update.
-    def find_one_and_update_side_effect(filter_check, update_doc, **kwargs):
+    def find_one_and_update_side_effect(filter_check, update_doc, **kwargs): # pylint: disable=unused-argument
         # Check if the filter matches the state of our fake DB
         if filter_check['id'] == fake_reservation_in_db['id'] and \
                 fake_reservation_in_db.get('state') == 'reserved':
@@ -470,3 +470,21 @@ def test_cancel_reservation_by_id_raises_error_when_not_found(mocker):
         ANY,
         return_document=ANY
     )
+
+def test_process_reservation_helper_handles_none_input():
+    """
+    UNIT TEST for the _process_reservation_for_api helper.
+
+    GIVEN the input to the helper function is None
+    WHEN _process_reservation_for_api is called
+    THEN it should return None without raising an error.
+    """
+    # Arrange
+    input_doc = None
+
+    # Act
+    # pylint: disable=protected-access
+    result = reservation_services._process_reservation_for_api(input_doc)
+
+    # Assert
+    assert result is None
