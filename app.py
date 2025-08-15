@@ -3,10 +3,12 @@
 import uuid
 import copy
 import os
+import sys
+import traceback
 from urllib.parse import urljoin
 from dotenv import load_dotenv
 from flask import Flask, request, jsonify, g
-from werkzeug.exceptions import NotFound
+from werkzeug.exceptions import HTTPException
 from pymongo import MongoClient
 from pymongo.errors import ConnectionFailure
 from database.mongo_helper import (
@@ -19,7 +21,7 @@ from database.mongo_helper import (
 from database import reservation_services
 from auth.services import init_oauth
 from auth.views import auth_bp # Imports the blueprint object from the auth module
-from auth.decorators import login_required, roles_required
+from auth.decorators import login_required, roles_required, reservation_owner_or_admin_required
 
 app = Flask(__name__)
 
@@ -110,7 +112,6 @@ def add_book():
     host = request.host_url
     # Send the host and new book_id to the helper function to generate links
     book_for_response = append_hostname(new_book, host)
-    print("book_for_response", book_for_response)
     # Remove MOngoDB's ObjectID value
     book_for_response.pop('_id', None)
 
@@ -212,6 +213,19 @@ def get_book(book_id):
         return jsonify(append_hostname(book_copy, host)), 200
     return jsonify({"error": "Book not found"}), 404
 
+@app.route("/books/<string:book_id>/reservations/<string:reservation_id>", methods=["GET"])
+@login_required
+@reservation_owner_or_admin_required
+def get_reservation(book_id, reservation_id): # pylint: disable=unused-argument
+    """
+    Retrieve a specific reservation by its unique ID,
+    if the reservation is owned by the current user,
+    or if the current user is an admin.
+    """
+    reservation_to_return = g.reservation
+
+    return jsonify(reservation_to_return), 200
+
 # ----------- DELETE section ------------------
 @app.route("/books/<string:book_id>", methods=["DELETE"])
 @login_required
@@ -267,12 +281,30 @@ def update_book(book_id):
         return jsonify(append_hostname(book_copy, host)), 200
     return jsonify({"error": "Book not found"}), 404
 
-@app.errorhandler(NotFound)
-def handle_not_found(e):
-    """Return a custom JSON response for 404 Not Found errors."""
-    return jsonify({"error": str(e)}), 404
+@app.errorhandler(HTTPException)
+def handle_http_exception(e):
+    """
+    Return JSON instead of HTML for HTTP errors.
+    This handler preserves the original status code of the exception.
+    """
+    # Create a JSON response
+    response = {
+        "code": e.code,
+        "name": e.name,
+        "description": e.description,
+    }
+    return jsonify(response), e.code
+
 
 @app.errorhandler(Exception)
-def handle_exception(e):
-    """Return a custom JSON response for any exception."""
-    return jsonify({"error": str(e)}), 500
+def handle_exception(e): # pylint: disable=unused-argument
+    """
+    Catches unhandled exceptions, prints the traceback to stderr,
+    and returns a generic 500 JSON response.
+    """
+    # Print the full exception traceback to the console (stderr)
+    # This gives you the same detailed debugging info as logging.exception()
+    traceback.print_exc(file=sys.stderr)
+
+    # Return a generic, user-friendly error message
+    return jsonify({"error": "An internal server error occurred."}), 500

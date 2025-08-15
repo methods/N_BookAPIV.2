@@ -1,9 +1,11 @@
 # pylint: disable=missing-docstring
 import os
+import uuid
 from bson.objectid import ObjectId
 import pytest
 from pymongo import MongoClient
-from app import app
+from database import user_services, reservation_services
+from app import app, get_book_collection
 
 # pylint: disable=R0801
 @pytest.fixture(name="client")
@@ -50,6 +52,65 @@ def mongo_client_fixture():
     # Clean up the mongoDB after the test
     client.drop_database("test_database")
 
+@pytest.fixture(name="user_factory")
+def test_user_factory():
+    """
+    A factory fixture that returns a function for creating users.
+    This allows tests to create multiple, distinct users.
+    """
+
+    def _create_user(role='viewer', name='Test User'):
+        """The actual factory function."""
+        profile = {
+            # Use the name to make the 'sub' and 'email' unique for each user
+            'sub': f"google-id-{name.replace(' ', '-').lower()}",
+            'email': f"{name.replace(' ', '.').lower()}@example.com",
+            'name': name
+        }
+        # Add the special 'test_role' if we want to create an admin
+        if role == 'admin':
+            profile['test_role'] = 'admin'
+
+        # Use the service layer to create the user in the test database
+        user_doc = user_services.get_or_create_user_from_oidc(profile)
+        return user_doc
+
+    # The fixture returns the inner function
+    return _create_user
+
+@pytest.fixture(name="authenticated_client")
+def authenticated_client_for_testing(client):
+    """
+    A factory fixture that returns a function to create an authenticated
+    client for a given user document.
+    """
+
+    def _create_authenticated_client(user_doc):
+        """Logs in the given user."""
+        with client.session_transaction() as sess:
+            sess['user_id'] = str(user_doc['_id'])
+        return client  # Return the now-authenticated client
+
+    return _create_authenticated_client
+
+
+@pytest.fixture(name="logout_client")
+def logged_out_client(client):
+    """
+    Provides a test client that has a session with user_id set to None,
+    simulating a logged-out user or a new visitor.
+    """
+    # Open a session transaction. This is crucial because it ensures
+    # the client is interacting with the session machinery.
+    def _create_logged_out_client(user_doc):
+        """Logs in the given user."""
+        with client.session_transaction() as sess:
+            sess['user_id'] = str(user_doc['_id'])
+            sess['user_id'] = None
+        return client  # Return the now-authenticated client
+
+    return _create_logged_out_client
+
 # Define multiple book payloads for testing
 book_payloads = [
     {
@@ -82,17 +143,10 @@ def test_post_route_inserts_to_mongodb(mongo_client, admin_client):
     db = mongo_client['test_database']
     collection = db['test_books']
 
-    # Arrange: Test book object
-    new_book_payload = {
-        "title": "The Midnight Library",
-        "synopsis": "A novel about all the choices that go into a life well lived.",
-        "author": "Matt Haig"
-    }
-
     # Act: send the POST request:
     response = admin_client.post(
         "/books", 
-        json=new_book_payload
+        json=book_payloads[0]
     )
 
     # Assert:
@@ -179,3 +233,251 @@ def test_update_soft_deleted_book_returns_404(mongo_client, admin_client):
     book_in_db = collection.find_one({'_id': ObjectId(book_id)})
     assert book_in_db['title'] == 'The Deleted Book'  # The title was NOT updated
     assert book_in_db['state'] == 'deleted'
+
+
+def test_get_reservation_succeeds_for_admin(authenticated_client, user_factory):
+    """
+    INTEGRATION TEST for GET /books/{id}/reservations/{id} as an admin.
+
+    GIVEN a logged-in admin user and an existing reservation owned by ANOTHER user
+    WHEN a GET request is made to the reservation's specific URL
+    THEN the decorators should grant access and the view should return a 200 OK
+    with the correct reservation data.
+    """
+    # Arrange
+    # 1. Create the two users we need using the factory.
+    owner_user = user_factory(role='viewer', name='Owner User')
+    admin_user = user_factory(role='admin', name='Admin User')
+    # 2. Create a client that is logged in as the ADMIN.
+    test_client = authenticated_client(admin_user)
+
+    # Act: send the POST request to add the book to be reserved into the database
+    response = test_client.post(
+        "/books",
+        json=book_payloads[0]
+    )
+    # Check the response
+    assert response.status_code == 201
+    assert response.headers["content-type"] == "application/json"
+    result = response.get_json()
+    book_id = str(result.get('id'))
+
+    # Arrange
+    # Get the user_doc for the owner of the reservation to be created
+    user_doc = owner_user
+
+    # Call the books_collection to pass to the reservation function
+    books_collection = get_book_collection()
+
+    # Pass the book_id, user: dict and books_collection to the reservation function
+    # We can't use the real route as the logged-in user is an admin, not the owner in this case
+    res_result = reservation_services.create_reservation_for_book(
+        book_id,
+        user_doc,
+        books_collection
+    )
+    reservation_id = res_result.get('id')
+
+    # ACT
+    response = test_client.get(
+        f"/books/{book_id}/reservations/{reservation_id}"
+    )
+
+    # ASSERT
+    assert response.status_code == 200
+    response_data = response.get_json()
+    assert response_data['id'] == reservation_id
+
+def test_get_reservation_succeeds_for_owner_not_admin(authenticated_client, user_factory):
+    """
+     INTEGRATION TEST for GET /books/{id}/reservations/{id} as a user who owns the reservation.
+
+    GIVEN a logged-in user and an existing reservation owned by that user
+    WHEN a GET request is made to the reservation's specific URL
+    THEN the decorators should grant access and the view should return a 200 OK
+    with the correct reservation data.
+    """
+    # Arrange
+    # Create the owner user and log them in
+    owner_user = user_factory(role='viewer', name='Owner User')
+    owner_client = authenticated_client(owner_user)
+
+    # And create an admin user to add the book to the database...
+    admin_user = user_factory(role='admin', name='Admin User')
+    test_admin_client = authenticated_client(admin_user)
+    # Add the book to be reserved into the database using the actual route
+    response = test_admin_client.post(
+        "/books",
+        json=book_payloads[1]
+    )
+    # Check the book was added correctly and get the book_id created
+    assert response.status_code == 201
+    assert response.headers["content-type"] == "application/json"
+    result = response.get_json()
+    book_id = str(result.get('id'))
+
+    # Create the reservation - using the real route as the non-admin owner
+    res_response = owner_client.post(
+        f"/books/{book_id}/reservations"
+    )
+    # Check the reservation was added and get the reservation_id
+    assert res_response.status_code == 201
+    res_data = res_response.get_json()
+    reservation_id = res_data.get('id')
+
+    # Act - attempt to access the reservation logged in as the owner
+    response = owner_client.get(
+        f"/books/{book_id}/reservations/{reservation_id}"
+    )
+
+    # Assert - was the reservation correctly accessed?
+    assert response.status_code == 200
+    response_data = response.get_json()
+    assert response_data['id'] == reservation_id
+
+def test_get_reservation_fails_for_user_not_admin_or_owner(authenticated_client, user_factory):
+    """
+     INTEGRATION TEST for GET /books/{id}/reservations/{id} as a user
+     who does not own the reservation.
+
+    GIVEN a logged-in user and an existing reservation owned a different user
+    WHEN a GET request is made to the reservation's specific URL
+    THEN the decorators should deny access and the view should return a 200 OK
+    with the correct reservation data.
+    """
+    # Arrange
+    # Create an admin user to add the book to the database and create a reservation
+    admin_user = user_factory(role='admin', name='Admin User')
+    test_admin_client = authenticated_client(admin_user)
+
+    response = test_admin_client.post(
+        "/books",
+        json=book_payloads[1]
+    )
+    # Check the book was added correctly and get the book_id created
+    assert response.status_code == 201
+    assert response.headers["content-type"] == "application/json"
+    result = response.get_json()
+    book_id = str(result.get('id'))
+
+    # Create a reservation using the logged in admin user
+    res_response = test_admin_client.post(
+        f"/books/{book_id}/reservations"
+    )
+    # Check the reservation was added and get the reservation_id
+    assert res_response.status_code == 201
+    res_data = res_response.get_json()
+    reservation_id = res_data.get('id')
+
+    # Create a non-admin user who does not own the reservation
+    non_owner_user = user_factory(role='viewer', name='Non-Owner User')
+    non_owner_client = authenticated_client(non_owner_user)
+
+    # Act - attempt to access the reservation logged in as the non_owner
+    response = non_owner_client.get(
+        f"/books/{book_id}/reservations/{reservation_id}"
+    )
+
+    # Assert - was the reservation view denied?
+    assert response.status_code == 403
+    assert response.content_type == "application/json"
+    response_data = response.get_json()
+    assert response_data["code"] == 403
+    assert response_data["name"] == "Forbidden"
+    assert "don't have the permission" in response_data["description"]
+
+def test_get_reservation_with_anonymous_user_redirects_to_login(
+        authenticated_client,
+        user_factory,
+        logout_client
+):
+    """
+    GIVEN no logged-in user
+    WHEN a GET request is made to the reservation's specific URL
+    THEN the login_required decorator should deny access
+    AND the view should return a 302 redirect to the login page.
+    """
+    # Arrange
+    # Create an admin user to add the book to the database and create a reservation
+    admin_user = user_factory(role='admin', name='Admin User')
+    test_admin_client = authenticated_client(admin_user)
+
+    response = test_admin_client.post(
+        "/books",
+        json=book_payloads[1]
+    )
+    # Check the book was added correctly and get the book_id created
+    assert response.status_code == 201
+    assert response.headers["content-type"] == "application/json"
+    result = response.get_json()
+    book_id = str(result.get('id'))
+
+    # Create a reservation using the logged in admin user
+    res_response = test_admin_client.post(
+        f"/books/{book_id}/reservations"
+    )
+    # Check the reservation was added and get the reservation_id
+    assert res_response.status_code == 201
+    res_data = res_response.get_json()
+    reservation_id = res_data.get('id')
+
+    # Create a session with a logged out user
+    invisible_user = user_factory(role='viewer', name='Invisible User')
+    anon_client = logout_client(invisible_user)
+    # Act
+    # Attempt to access the reservation GET endpoint while not logged in
+    response = anon_client.get(
+        f"/books/{book_id}/reservations/{reservation_id}"
+    )
+
+    # Assert
+    # Was the attempt redirected?
+    assert response.status_code == 302
+    assert 'http://localhost:5000/auth/login' in response.location
+
+def test_get_reservation_with_non_existent_id_returns_404(authenticated_client, user_factory):
+    """
+    GIVEN a logged-in admin user and a correct book_id
+    AND a reservation UUID that is valid in format but does not exist in the database
+    WHEN a GET request is made to the reservation's specific URL
+    THEN the application should return a 404 Not Found response.
+    """
+    # Arrange
+    # Create the admin user and client
+    admin_user = user_factory(role='admin', name='Admin User')
+    test_admin_client = authenticated_client(admin_user)
+    # Add a book to the database, check it and retrieve the id
+    response = test_admin_client.post(
+        "/books",
+        json=book_payloads[1]
+    )
+    # Check the book was added correctly and get the book_id created
+    assert response.status_code == 201
+    assert response.headers["content-type"] == "application/json"
+    result = response.get_json()
+    book_id = str(result.get('id'))
+
+    # Create a reservation using the logged in admin user
+    res_response = test_admin_client.post(
+        f"/books/{book_id}/reservations"
+    )
+    # Check the reservation was added and get the reservation_id
+    assert res_response.status_code == 201
+    res_data = res_response.get_json()
+    reservation_id = res_data.get('id')
+
+    # Create a correctly formatted uuid and check it DOESN'T match the real one
+    wrong_res_id = str(uuid.uuid4())
+    assert wrong_res_id != reservation_id
+
+    # Act
+    # Attempt to access the reservation endpoint with the wrong_res_id
+    response = test_admin_client.get(
+        f"/books/{book_id}/reservations/{wrong_res_id}"
+    )
+
+    # Assert
+    assert response.status_code == 404
+    assert response.headers["content-type"] == "application/json"
+    result = response.get_json()
+    assert "not found" in result.get("description")
