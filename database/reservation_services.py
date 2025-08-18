@@ -28,7 +28,7 @@ def _process_reservation_for_api(reservation_doc):
     doc_copy = reservation_doc.copy()
 
     doc_copy.pop('_id', None)
-    doc_copy.pop('user_id', None)  # Or convert to string if it's a public link
+    doc_copy['user_id'] = str(doc_copy['user_id'])
 
     if 'reservedAt' in doc_copy and hasattr(doc_copy['reservedAt'], 'isoformat'):
         doc_copy['reservedAt'] = doc_copy['reservedAt'].isoformat()
