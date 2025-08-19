@@ -4,8 +4,8 @@ import uuid
 from bson.objectid import ObjectId
 import pytest
 from pymongo import MongoClient
-from database import user_services, reservation_services
-from app import app, get_book_collection
+from database import user_services
+from app import app
 
 # pylint: disable=R0801
 @pytest.fixture(name="client")
@@ -314,7 +314,11 @@ def test_get_reservation_succeeds_for_owner_not_admin(reservation_setup):
     response_data = response.get_json()
     assert response_data['id'] == reservation_id
 
-def test_get_reservation_fails_for_user_not_admin_or_owner(authenticated_client, user_factory, reservation_setup):
+def test_get_reservation_fails_for_user_not_admin_or_owner(
+        authenticated_client,
+        user_factory,
+        reservation_setup
+):
     """
      INTEGRATION TEST for GET /books/{id}/reservations/{id} as a user
      who does not own the reservation.
@@ -451,7 +455,11 @@ def test_delete_reservation_succeeds_for_admin_not_owner(reservation_setup):
     assert response_data['id'] == reservation_id
     assert response_data['state'] == 'cancelled'
 
-def test_delete_reservation_fails_for_user_not_admin_or_owner(authenticated_client, user_factory, reservation_setup):
+def test_delete_reservation_fails_for_user_not_admin_or_owner(
+        authenticated_client,
+        user_factory,
+        reservation_setup
+):
     """
      INTEGRATION TEST for DELETE /books/{id}/reservations/{id} as a user
      who does not own the reservation.
