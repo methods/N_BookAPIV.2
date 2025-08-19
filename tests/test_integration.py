@@ -426,3 +426,29 @@ def test_delete_reservation_succeeds_for_owner_not_admin(reservation_setup):
     response_data = response.get_json()
     assert response_data['id'] == reservation_id
     assert response_data['state'] == 'cancelled'
+
+def test_delete_reservation_succeeds_for_admin_not_owner(reservation_setup):
+    """
+    INTEGRATION TEST for DELETE /books/{id}/reservations/{id} as an admin.
+
+    GIVEN a logged-in admin user and an existing reservation owned by ANOTHER user
+    WHEN a DELETE request is made to the reservation's specific URL
+    THEN the decorators should grant access and the view should return a 200 OK
+    with the cancelled reservation data.
+    """
+    # Arrange - the test database and documents are set up in the fixture
+    test_admin_client = reservation_setup["test_admin_client"]
+    book_id = reservation_setup["book"]["id"]
+    reservation_id = reservation_setup["reservation"]["id"]
+
+    # Act - attempt to access the reservation logged in as the admin
+    response = test_admin_client.delete(
+        f"/books/{book_id}/reservations/{reservation_id}"
+    )
+
+    # Assert
+    assert response.status_code == 200
+    response_data = response.get_json()
+    assert response_data['id'] == reservation_id
+    assert response_data['state'] == 'cancelled'
+
