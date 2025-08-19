@@ -401,6 +401,7 @@ def test_cancel_reservation_by_id_success_path(mocker):
     fake_reservation_in_db = {
         '_id': ObjectId(),
         'id': reservation_uuid,
+        'user_id': ObjectId(),
         'state': 'reserved'  # It starts as 'reserved'
     }
 
