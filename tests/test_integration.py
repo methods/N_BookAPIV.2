@@ -111,6 +111,37 @@ def logged_out_client(client):
 
     return _create_logged_out_client
 
+@pytest.fixture(name="owner_not_admin_setup")
+def reservation_scenario(user_factory, authenticated_client):
+    """
+    Sets up a complete scenario for reservation tests and returns the
+    key components in a dictionary.
+    """
+    # 1. Create the user personas and clients
+    owner_user = user_factory(role='viewer', name='Scenario Owner')
+    admin_user = user_factory(role='admin', name='Scenario Admin')
+    owner_client = authenticated_client(owner_user)
+    test_admin_client = authenticated_client(admin_user)
+
+    # 2. Use the admin to create the book
+    book_res = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_res.status_code == 201
+    created_book = book_res.get_json()
+
+    # 3. Use the owner to create the reservation
+    res_res = owner_client.post(f"/books/{created_book['id']}/reservations")
+    assert res_res.status_code == 201
+    created_reservation = res_res.get_json()
+
+    # 4. Bundle everything into a simple dictionary and return it.
+    return {
+        "admin_client": test_admin_client,
+        "owner_client": owner_client,
+        "owner_user": owner_user,
+        "book": created_book,
+        "reservation": created_reservation
+    }
+
 # Define multiple book payloads for testing
 book_payloads = [
     {
@@ -288,7 +319,7 @@ def test_get_reservation_succeeds_for_admin(authenticated_client, user_factory):
     response_data = response.get_json()
     assert response_data['id'] == reservation_id
 
-def test_get_reservation_succeeds_for_owner_not_admin(authenticated_client, user_factory):
+def test_get_reservation_succeeds_for_owner_not_admin(owner_not_admin_setup):
     """
      INTEGRATION TEST for GET /books/{id}/reservations/{id} as a user who owns the reservation.
 
@@ -297,33 +328,10 @@ def test_get_reservation_succeeds_for_owner_not_admin(authenticated_client, user
     THEN the decorators should grant access and the view should return a 200 OK
     with the correct reservation data.
     """
-    # Arrange
-    # Create the owner user and log them in
-    owner_user = user_factory(role='viewer', name='Owner User')
-    owner_client = authenticated_client(owner_user)
-
-    # And create an admin user to add the book to the database...
-    admin_user = user_factory(role='admin', name='Admin User')
-    test_admin_client = authenticated_client(admin_user)
-    # Add the book to be reserved into the database using the actual route
-    response = test_admin_client.post(
-        "/books",
-        json=book_payloads[1]
-    )
-    # Check the book was added correctly and get the book_id created
-    assert response.status_code == 201
-    assert response.headers["content-type"] == "application/json"
-    result = response.get_json()
-    book_id = str(result.get('id'))
-
-    # Create the reservation - using the real route as the non-admin owner
-    res_response = owner_client.post(
-        f"/books/{book_id}/reservations"
-    )
-    # Check the reservation was added and get the reservation_id
-    assert res_response.status_code == 201
-    res_data = res_response.get_json()
-    reservation_id = res_data.get('id')
+    # Arrange - the test database and documents are set up in the fixture
+    owner_client = owner_not_admin_setup["owner_client"]
+    book_id = owner_not_admin_setup["book"]["id"]
+    reservation_id = owner_not_admin_setup["reservation"]["id"]
 
     # Act - attempt to access the reservation logged in as the owner
     response = owner_client.get(
@@ -482,7 +490,7 @@ def test_get_reservation_with_non_existent_id_returns_404(authenticated_client, 
     result = response.get_json()
     assert "not found" in result.get("description")
 
-def test_delete_reservation_succeeds_for_owner(authenticated_client, user_factory):
+def test_delete_reservation_succeeds_for_owner_not_admin(owner_not_admin_setup):
     """
      INTEGRATION TEST for DELETE /books/{id}/reservations/{id} as a user who owns the reservation.
 
@@ -491,33 +499,10 @@ def test_delete_reservation_succeeds_for_owner(authenticated_client, user_factor
     THEN the decorators should grant access and the view should return a 200 OK
     with the cancelled reservation data.
     """
-    # Arrange
-    # Create the owner user and log them in
-    owner_user = user_factory(role='viewer', name='Owner User')
-    owner_client = authenticated_client(owner_user)
-
-    # And create an admin user to add the book to the database...
-    admin_user = user_factory(role='admin', name='Admin User')
-    test_admin_client = authenticated_client(admin_user)
-    # Add the book to be reserved into the database using the actual route
-    response = test_admin_client.post(
-        "/books",
-        json=book_payloads[1]
-    )
-    # Check the book was added correctly and get the book_id created
-    assert response.status_code == 201
-    assert response.headers["content-type"] == "application/json"
-    result = response.get_json()
-    book_id = str(result.get('id'))
-
-    # Create the reservation - using the real route as the non-admin owner
-    res_response = owner_client.post(
-        f"/books/{book_id}/reservations"
-    )
-    # Check the reservation was added and get the reservation_id
-    assert res_response.status_code == 201
-    res_data = res_response.get_json()
-    reservation_id = res_data.get('id')
+    # Arrange - the test database and documents are set up in the fixture
+    owner_client = owner_not_admin_setup["owner_client"]
+    book_id = owner_not_admin_setup["book"]["id"]
+    reservation_id = owner_not_admin_setup["reservation"]["id"]
 
     # Act - attempt to access the reservation logged in as the owner
     response = owner_client.delete(
