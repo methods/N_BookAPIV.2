@@ -321,8 +321,7 @@ def test_get_reservation_fails_for_user_not_admin_or_owner(authenticated_client,
 
     GIVEN a logged-in user and an existing reservation owned a different user
     WHEN a GET request is made to the reservation's specific URL
-    THEN the decorators should deny access and the view should return a 200 OK
-    with the correct reservation data.
+    THEN the decorators should deny access and the view should return 403 Forbidden
     """
     # Arrange - the test database and documents are set up in the fixture
     book_id = reservation_setup["book"]["id"]
@@ -452,3 +451,32 @@ def test_delete_reservation_succeeds_for_admin_not_owner(reservation_setup):
     assert response_data['id'] == reservation_id
     assert response_data['state'] == 'cancelled'
 
+def test_delete_reservation_fails_for_user_not_admin_or_owner(authenticated_client, user_factory, reservation_setup):
+    """
+     INTEGRATION TEST for DELETE /books/{id}/reservations/{id} as a user
+     who does not own the reservation.
+
+    GIVEN a logged-in user and an existing reservation owned by a different user
+    WHEN a DELETE request is made to the reservation's specific URL
+    THEN the decorators should deny access and the view should return a 403 Forbidden
+    """
+    # Arrange - the test database and documents are set up in the fixture
+    book_id = reservation_setup["book"]["id"]
+    reservation_id = reservation_setup["reservation"]["id"]
+
+    # Create a non-admin user who does not own the reservation
+    non_owner_user = user_factory(role='viewer', name='Non-Owner User')
+    non_owner_client = authenticated_client(non_owner_user)
+
+    # Act - attempt to access the reservation logged in as the non_owner
+    response = non_owner_client.delete(
+        f"/books/{book_id}/reservations/{reservation_id}"
+    )
+
+    # Assert - was the reservation view denied?
+    assert response.status_code == 403
+    assert response.content_type == "application/json"
+    response_data = response.get_json()
+    assert response_data["code"] == 403
+    assert response_data["name"] == "Forbidden"
+    assert "don't have the permission" in response_data["description"]
