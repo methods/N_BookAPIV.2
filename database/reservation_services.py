@@ -2,7 +2,7 @@
 from datetime import datetime, timezone
 import uuid
 import copy
-from pymongo import MongoClient
+from pymongo import MongoClient, ReturnDocument
 from pymongo.errors import ConnectionFailure
 from . import mongo_helper
 
@@ -15,6 +15,26 @@ class ReservationNotFoundError(Exception):
     """
     Exception raised when a reservation cannot be found in the database
     """
+
+def _process_reservation_for_api(reservation_doc):
+    """
+    A private helper to consistently format a reservation document for API output.
+    Converts ObjectIds and datetimes to strings and removes internal fields.
+    """
+    if not reservation_doc:
+        return None
+
+    doc_copy = reservation_doc.copy()
+
+    doc_copy.pop('_id', None)
+    doc_copy['user_id'] = str(doc_copy['user_id'])
+
+    if 'reservedAt' in doc_copy and hasattr(doc_copy['reservedAt'], 'isoformat'):
+        doc_copy['reservedAt'] = doc_copy['reservedAt'].isoformat()
+    if 'cancelledAt' in doc_copy and hasattr(doc_copy['cancelledAt'], 'isoformat'):
+        doc_copy['cancelledAt'] = doc_copy['cancelledAt'].isoformat()
+
+    return doc_copy
 
 def get_reservations_collection():
     """
@@ -89,8 +109,36 @@ def find_reservation_by_id(reservation_id):
             f"Reservation with ID {reservation_id} cannot be found in the database."
         )
     # Prepare the returned reservation document for output and return it
-    result.pop('_id', None)
-    # result.pop('user_id', None)
-    result['user_id'] = str(result['user_id'])
-    result['reservedAt'] = result['reservedAt'].isoformat()
-    return result
+    return _process_reservation_for_api(result)
+
+def cancel_reservation_by_id(reservation_id):
+    """
+    Find a reservation record by its 'id' field and update it as 'cancelled'.
+    """
+    # Prepare the collection for the operation
+    reservations_collection = get_reservations_collection()
+    # Check the reservation is active
+    query_filter = {
+        'id': reservation_id,
+        'state': 'reserved'
+    }
+    # Prepare the changes to the document
+    update_doc = {
+        '$set': {
+            'state': 'cancelled',
+            'cancelledAt': datetime.now(timezone.utc)
+        }
+    }
+    # Find and update the document
+    # Use find_one_and_update to get the updated document back in one go
+    updated_doc = reservations_collection.find_one_and_update(
+        query_filter,
+        update_doc,
+        return_document=ReturnDocument.AFTER
+    )
+    # Process and return the updated_doc or raise an error if it's None
+    if not updated_doc:
+        raise ReservationNotFoundError(
+            f"Reservation with ID {reservation_id} cannot be found in the database."
+        )
+    return _process_reservation_for_api(updated_doc)

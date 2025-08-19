@@ -2,7 +2,7 @@
 import uuid
 import copy
 from datetime import datetime, timezone
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, ANY
 from bson.objectid import ObjectId
 import pytest
 from pymongo.errors import ConnectionFailure
@@ -376,3 +376,116 @@ def test_find_reservation_by_id_raises_error_when_not_found(mocker):
 
     # We can also verify that the database was queried correctly before the exception was raised.
     mock_reservations_collection.find_one.assert_called_once_with({'id': non_existent_uuid})
+
+def test_cancel_reservation_by_id_success_path(mocker):
+    """
+    UNIT TEST for cancel_reservation_by_id happy path.
+
+    GIVEN a valid reservation ID (string UUID)
+    WHEN the cancel_reservation_by_id service is called
+    AND a matching document is found in the (mocked) database
+    THEN it should call find_one_and_update with the correct query and update document
+    AND return the processed, now-cancelled reservation document
+    """
+    # NOTE - test written by AI from docstring
+    # ARRANGE
+    # 1. Mock the collection.
+    mock_collection = MagicMock()
+    mocker.patch(
+        'database.reservation_services.get_reservations_collection',
+        return_value=mock_collection
+    )
+
+    # 2. Set up the "before" state of the reservation in your fake DB.
+    reservation_uuid = str(uuid.uuid4())
+    fake_reservation_in_db = {
+        '_id': ObjectId(),
+        'id': reservation_uuid,
+        'user_id': ObjectId(),
+        'state': 'reserved'  # It starts as 'reserved'
+    }
+
+    # 3. Create a stateful side_effect for find_one_and_update.
+    def find_one_and_update_side_effect(filter_check, update_doc, **kwargs): # pylint: disable=unused-argument
+        # Check if the filter matches the state of our fake DB
+        if filter_check['id'] == fake_reservation_in_db['id'] and \
+                fake_reservation_in_db.get('state') == 'reserved':
+            # If it matches, simulate the update
+            changes = update_doc.get('$set', {})
+            updated_doc = fake_reservation_in_db.copy()
+            updated_doc.update(changes)
+            return updated_doc
+        return None
+
+    mock_collection.find_one_and_update.side_effect = find_one_and_update_side_effect
+
+    # ACT
+    result = reservation_services.cancel_reservation_by_id(reservation_uuid)
+
+    # ASSERT
+    # 1. Was find_one_and_update called with the correct query and update?
+    mock_collection.find_one_and_update.assert_called_once()
+    call_args = mock_collection.find_one_and_update.call_args
+    assert call_args[0][0]['state'] == 'reserved'  # Check it's looking for active reservations
+    assert call_args[0][1]['$set']['state'] == 'cancelled'
+
+    # 2. Did the returned document have the new, correct state?
+    assert result['state'] == 'cancelled'
+
+def test_cancel_reservation_by_id_raises_error_when_not_found(mocker):
+    """
+    UNIT TEST for cancel_reservation_by_id failure path.
+
+    GIVEN a reservation ID that does not exist in the database
+    WHEN cancel_reservation_by_id is called
+    THEN it should raise a ReservationNotFoundError.
+    """
+    # ARRANGE
+    # 1. Mock the collection getter and the collection object.
+    mock_get_collection = mocker.patch(
+        'database.reservation_services.get_reservations_collection'
+    )
+    mock_reservations_collection = MagicMock()
+    mock_get_collection.return_value = mock_reservations_collection
+
+    # 2. This is the key step: Configure find_one to return None,
+    #    simulating a document that is not found.
+    mock_reservations_collection.find_one_and_update.return_value = None
+
+    # 3. An ID to search for - the mock will return None anyway
+    non_existent_uuid = str(uuid.uuid4())
+
+    # ACT & ASSERT
+    # Use pytest.raises as a context manager to assert that our
+    # specific exception was raised during the function call.
+    with pytest.raises(ReservationNotFoundError) as exc_info:
+        reservation_services.cancel_reservation_by_id(non_existent_uuid)
+
+    # (Optional but recommended) Assert that the exception message is helpful and contains the ID.
+    assert non_existent_uuid in str(exc_info.value)
+    assert "cannot be found" in str(exc_info.value)
+
+    # We can also verify that the database was queried correctly before the exception was raised.
+    mock_reservations_collection.find_one_and_update.assert_called_once_with(
+        {'id': non_existent_uuid, 'state': 'reserved'},
+        ANY,
+        return_document=ANY
+    )
+
+def test_process_reservation_helper_handles_none_input():
+    """
+    UNIT TEST for the _process_reservation_for_api helper.
+
+    GIVEN the input to the helper function is None
+    WHEN _process_reservation_for_api is called
+    THEN it should return None without raising an error.
+    """
+    # Arrange
+    input_doc = None
+
+    # Act
+    # pylint: disable=protected-access
+    result = reservation_services._process_reservation_for_api(input_doc)
+
+    # Assert
+    assert result is None
