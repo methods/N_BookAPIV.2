@@ -480,3 +480,19 @@ def test_delete_reservation_fails_for_user_not_admin_or_owner(authenticated_clie
     assert response_data["code"] == 403
     assert response_data["name"] == "Forbidden"
     assert "don't have the permission" in response_data["description"]
+
+def test_delete_reservation_as_anonymous_user_redirects_to_login(client):
+    """
+    INTEGRATION SANITY CHECK:
+    Verifies that the @login_required decorator is active on the DELETE endpoint.
+    """
+    # Arrange - uuid's not needed as should not reach owner_or_admin decorator
+    book_uuid = "some-book-uuid"
+    reservation_uuid = "some-reservation-uuid"
+
+    # Act
+    response = client.delete(f"/books/{book_uuid}/reservations/{reservation_uuid}")
+
+    # Assert
+    assert response.status_code == 302
+    assert "http://localhost:5000/auth/login" in response.location
