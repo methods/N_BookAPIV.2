@@ -265,8 +265,8 @@ def test_update_soft_deleted_book_returns_404(mongo_client, admin_client):
     assert book_in_db['title'] == 'The Deleted Book'  # The title was NOT updated
     assert book_in_db['state'] == 'deleted'
 
-
 def test_get_reservation_succeeds_for_admin(reservation_setup):
+
     """
     INTEGRATION TEST for GET /books/{id}/reservations/{id} as an admin.
 

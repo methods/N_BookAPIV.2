@@ -16,7 +16,6 @@ class ReservationNotFoundError(Exception):
     Exception raised when a reservation cannot be found in the database
     """
 
-
 def _process_reservation_for_api(reservation_doc):
     """
     A private helper to consistently format a reservation document for API output.
