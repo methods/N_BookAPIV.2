@@ -149,4 +149,33 @@ def find_all_reservations(current_user: dict, filters: dict = None):
     - Regular users can only see their own reservations.
     - Admins can see all reservations and can filter by user_id.
     """
-    pass
+    # Prepare the collection for the operation
+    reservations_collection = get_reservations_collection()
+
+    # Build the query for the collection
+    query = {}
+
+    # Check if the user is an admin
+    is_admin = 'admin' in current_user.get('roles', [])
+
+    # If the user is an admin, import any user_id filters they've asked for
+    if is_admin:
+        if filters and 'user_id' in filters:
+            query['user_id'] = filters['user_id']
+    else:
+        # If the user is not an admin, use their user_id to filter
+        query['user_id'] = current_user['_id']
+
+    # Execute the query
+    cursor = reservations_collection.find(query)
+
+    # Convert the cursor to a list of raw documents.
+    raw_reservations = list(cursor)
+
+    # Process the raw documents in the list
+    processed_reservations = [
+        _process_reservation_for_api(doc) for doc in raw_reservations
+    ]
+
+    # Return the final, clean list.
+    return processed_reservations

@@ -515,7 +515,7 @@ def test_find_all_reservations_for_regular_user_returns_only_their_reservations(
 
     # Define the non-admin user making the request
     requesting_user = {
-        'id': 'user-uuid-123',
+        '_id': 'user-uuid-123',
         'roles': ['viewer']
     }
 
