@@ -142,3 +142,11 @@ def cancel_reservation_by_id(reservation_id):
             f"Reservation with ID {reservation_id} cannot be found in the database."
         )
     return _process_reservation_for_api(updated_doc)
+
+def find_all_reservations(current_user: dict, filters: dict = None):
+    """
+    Finds a list of reservations based on the user's role and provided filters.
+    - Regular users can only see their own reservations.
+    - Admins can see all reservations and can filter by user_id.
+    """
+    pass

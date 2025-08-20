@@ -489,3 +489,57 @@ def test_process_reservation_helper_handles_none_input():
 
     # Assert
     assert result is None
+
+def test_find_all_reservations_for_regular_user_returns_only_their_reservations(mocker):
+    """
+    UNIT TEST for the find_reservations service function.
+
+    GIVEN a regular (non-admin) user
+    WHEN find_reservations is called for that user
+    THEN the database find() query should be correctly filtered by the user's public ID
+    AND a processed list of only their reservations should be returned.
+    """
+    # Arrange
+    # Mock the dependencies
+    mock_collection = MagicMock()
+    mocker.patch(
+        'database.reservation_services.get_reservations_collection',
+        return_value=mock_collection
+    )
+    # Also mock the processing helper function, so we can test it was called
+    mock_processor = mocker.patch(
+        'database.reservation_services._process_reservation_for_api'
+    )
+    # Make the processor simply pass through the supplied document
+    mock_processor.side_effect = lambda doc: doc
+
+    # Define the non-admin user making the request
+    requesting_user = {
+        'id': 'user-uuid-123',
+        'roles': ['viewer']
+    }
+
+    # Define the data we expect the database to return
+    user_reservations = [
+        {'id': 'res-1', 'user_id': 'user-uuid-123'},
+        {'id': 'res-2', 'user_id': 'user-uuid-123'}
+    ]
+
+    # Configure the mock find() to return the user's reservations
+    mock_collection.find.return_value = user_reservations
+
+    # Act
+    # Call the service function as this regular user
+    result = reservation_services.find_all_reservations(current_user=requesting_user)
+
+    # Assert
+    # Was the database find() method called with the correct, secure filter?
+    expected_filter = {'user_id': 'user-uuid-123'}
+    mock_collection.find.assert_called_once_with(expected_filter)
+
+    # Was the processing function called for each document found?
+    assert mock_processor.call_count == 2
+
+    # Did the function return the correct list of reservations?
+    assert len(result) == 2
+    assert result[0]['id'] == 'res-1'
