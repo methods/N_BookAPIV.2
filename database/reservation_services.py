@@ -2,6 +2,7 @@
 from datetime import datetime, timezone
 import uuid
 import copy
+from bson.objectid import ObjectId
 from pymongo import MongoClient, ReturnDocument
 from pymongo.errors import ConnectionFailure
 from . import mongo_helper
@@ -161,10 +162,10 @@ def find_all_reservations(current_user: dict, filters: dict = None):
     # If the user is an admin, import any user_id filters they've asked for
     if is_admin:
         if filters and 'user_id' in filters:
-            query['user_id'] = filters['user_id']
+            query['user_id'] = ObjectId(filters['user_id'])
     else:
         # If the user is not an admin, use their user_id to filter
-        query['user_id'] = current_user['_id']
+        query['user_id'] = ObjectId(current_user['_id'])
 
     # Allow filtering by state for all users
     if filters and 'state' in filters:

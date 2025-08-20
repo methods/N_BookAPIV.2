@@ -213,6 +213,20 @@ def get_book(book_id):
         return jsonify(append_hostname(book_copy, host)), 200
     return jsonify({"error": "Book not found"}), 404
 
+@app.route("/reservations", methods=["GET"])
+@login_required
+def get_all_reservations():
+    """
+    Retrieve all reservations from the reservations collection.
+    - Regular users can only see their own reservations.
+    - Admins can see all reservations and can filter by user_id.
+    - All users can filter by reservation state.
+    """
+    current_user = g.user
+    filters = request.args
+    reservations = reservation_services.find_all_reservations(current_user, filters)
+    return jsonify(reservations), 200
+
 @app.route("/books/<string:book_id>/reservations/<string:reservation_id>", methods=["GET"])
 @login_required
 @reservation_owner_or_admin_required

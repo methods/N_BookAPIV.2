@@ -513,16 +513,19 @@ def test_find_all_reservations_for_regular_user_returns_only_their_reservations(
     # Make the processor simply pass through the supplied document
     mock_processor.side_effect = lambda doc: doc
 
+    # Create an appropriate _id field for the user
+    mock_user = str(ObjectId())
+
     # Define the non-admin user making the request
     requesting_user = {
-        '_id': 'user-uuid-123',
+        '_id': mock_user,
         'roles': ['viewer']
     }
 
     # Define the data we expect the database to return
     user_reservations = [
-        {'id': 'res-1', 'user_id': 'user-uuid-123'},
-        {'id': 'res-2', 'user_id': 'user-uuid-123'}
+        {'id': 'res-1', 'user_id': mock_user},
+        {'id': 'res-2', 'user_id': mock_user}
     ]
 
     # Configure the mock find() to return the user's reservations
@@ -534,7 +537,7 @@ def test_find_all_reservations_for_regular_user_returns_only_their_reservations(
 
     # Assert
     # Was the database find() method called with the correct, secure filter?
-    expected_filter = {'user_id': 'user-uuid-123'}
+    expected_filter = {'user_id': ObjectId(mock_user)}
     mock_collection.find.assert_called_once_with(expected_filter)
 
     # Was the processing function called for each document found?
@@ -565,15 +568,18 @@ def test_find_all_reservations_as_admin_filters_by_user(mocker):
     mock_processor = mocker.patch('database.reservation_services._process_reservation_for_api')
     mock_processor.side_effect = lambda doc: doc
 
+    # Create an appropriate _id field for the admin user
+    mock_admin_user = str(ObjectId())
+
     # 2. Define the user making the request. This user MUST be an admin.
     admin_user = {
-        '_id': 'admin-uuid-789',
+        '_id': mock_admin_user,
         'roles': ['admin', 'viewer']
     }
 
     # 3. Define the filter that the view layer would pass.
     #    This simulates a request like GET /reservations?user_id=user-uuid-123
-    target_user_id = 'user-uuid-123'
+    target_user_id = str(ObjectId())
     query_filters = {
         'user_id': target_user_id,
         'state': 'reserved'
@@ -596,7 +602,7 @@ def test_find_all_reservations_as_admin_filters_by_user(mocker):
     # ASSERT
     # 1. This is the most important assertion: Was the find() method
     #    called with a query that was correctly filtered by the user_id?
-    expected_db_filter = {'user_id': target_user_id, 'state': 'reserved'}
+    expected_db_filter = {'user_id': ObjectId(target_user_id), 'state': 'reserved'}
     mock_collection.find.assert_called_once_with(expected_db_filter)
 
     # 2. Was the processing function called for each document found?
