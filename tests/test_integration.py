@@ -111,36 +111,23 @@ def logged_out_client(client):
 
     return _create_logged_out_client
 
-@pytest.fixture(name="reservation_setup")
-def reservation_scenario(user_factory, authenticated_client):
+
+def create_authenticated_client(user_factory, role='viewer', name='Test User'):
     """
-    Sets up a complete scenario for reservation tests and returns the
-    key components in a dictionary.
+    A test helper that creates a NEW, ISOLATED, and AUTHENTICATED client.
     """
-    # 1. Create the user personas and clients
-    owner_user = user_factory(role='viewer', name='Scenario Owner')
-    admin_user = user_factory(role='admin', name='Scenario Admin')
-    owner_client = authenticated_client(owner_user)
-    test_admin_client = authenticated_client(admin_user)
+    # Create the user data.
+    user_doc = user_factory(role=role, name=name)
 
-    # 2. Use the admin to create the book
-    book_res = test_admin_client.post("/books", json=book_payloads[0])
-    assert book_res.status_code == 201
-    created_book = book_res.get_json()
+    # Create a brand new, fresh client instance.
+    new_client = app.test_client()
 
-    # 3. Use the owner to create the reservation
-    res_res = owner_client.post(f"/books/{created_book['id']}/reservations")
-    assert res_res.status_code == 201
-    created_reservation = res_res.get_json()
+    # Log the user into the new client
+    with new_client.session_transaction() as sess:
+        sess['user_id'] = str(user_doc['_id'])
 
-    # 4. Bundle everything into a simple dictionary and return it.
-    return {
-        "test_admin_client": test_admin_client,
-        "owner_client": owner_client,
-        "owner_user": owner_user,
-        "book": created_book,
-        "reservation": created_reservation
-    }
+    # Return the fully prepared client.
+    return new_client
 
 # Define multiple book payloads for testing
 book_payloads = [
@@ -265,7 +252,7 @@ def test_update_soft_deleted_book_returns_404(mongo_client, admin_client):
     assert book_in_db['title'] == 'The Deleted Book'  # The title was NOT updated
     assert book_in_db['state'] == 'deleted'
 
-def test_get_reservation_succeeds_for_admin(reservation_setup):
+def test_get_reservation_succeeds_for_admin(user_factory):
 
     """
     INTEGRATION TEST for GET /books/{id}/reservations/{id} as an admin.
@@ -276,9 +263,16 @@ def test_get_reservation_succeeds_for_admin(reservation_setup):
     with the correct reservation data.
     """
     # Arrange - the test database and documents are set up in the fixture
-    test_admin_client = reservation_setup["test_admin_client"]
-    book_id = reservation_setup["book"]["id"]
-    reservation_id = reservation_setup["reservation"]["id"]
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
 
     # ACT
     response = test_admin_client.get(
@@ -290,7 +284,7 @@ def test_get_reservation_succeeds_for_admin(reservation_setup):
     response_data = response.get_json()
     assert response_data['id'] == reservation_id
 
-def test_get_reservation_succeeds_for_owner_not_admin(reservation_setup):
+def test_get_reservation_succeeds_for_owner_not_admin(user_factory):
     """
      INTEGRATION TEST for GET /books/{id}/reservations/{id} as a user who owns the reservation.
 
@@ -300,9 +294,16 @@ def test_get_reservation_succeeds_for_owner_not_admin(reservation_setup):
     with the correct reservation data.
     """
     # Arrange - the test database and documents are set up in the fixture
-    owner_client = reservation_setup["owner_client"]
-    book_id = reservation_setup["book"]["id"]
-    reservation_id = reservation_setup["reservation"]["id"]
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
 
     # Act - attempt to access the reservation logged in as the owner
     response = owner_client.get(
@@ -314,11 +315,7 @@ def test_get_reservation_succeeds_for_owner_not_admin(reservation_setup):
     response_data = response.get_json()
     assert response_data['id'] == reservation_id
 
-def test_get_reservation_fails_for_user_not_admin_or_owner(
-        authenticated_client,
-        user_factory,
-        reservation_setup
-):
+def test_get_reservation_fails_for_user_not_admin_or_owner(user_factory):
     """
      INTEGRATION TEST for GET /books/{id}/reservations/{id} as a user
      who does not own the reservation.
@@ -328,12 +325,19 @@ def test_get_reservation_fails_for_user_not_admin_or_owner(
     THEN the decorators should deny access and the view should return 403 Forbidden
     """
     # Arrange - the test database and documents are set up in the fixture
-    book_id = reservation_setup["book"]["id"]
-    reservation_id = reservation_setup["reservation"]["id"]
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
 
     # Create a non-admin user who does not own the reservation
-    non_owner_user = user_factory(role='viewer', name='Non-Owner User')
-    non_owner_client = authenticated_client(non_owner_user)
+    non_owner_client = create_authenticated_client(user_factory, role='viewer', name='Non-Owner User')
 
     # Act - attempt to access the reservation logged in as the non_owner
     response = non_owner_client.get(
@@ -349,7 +353,7 @@ def test_get_reservation_fails_for_user_not_admin_or_owner(
     assert "don't have the permission" in response_data["description"]
 
 def test_get_reservation_with_anonymous_user_redirects_to_login(
-        reservation_setup,
+        client,
         user_factory,
         logout_client
 ):
@@ -360,15 +364,20 @@ def test_get_reservation_with_anonymous_user_redirects_to_login(
     AND the view should return a 302 redirect to the login page.
     """
     # Arrange - the test database and documents are set up in the fixture
-    book_id = reservation_setup["book"]["id"]
-    reservation_id = reservation_setup["reservation"]["id"]
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
 
-    # Create a session with a logged out user
-    invisible_user = user_factory(role='viewer', name='Invisible User')
-    anon_client = logout_client(invisible_user)
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
+
     # Act
-    # Attempt to access the reservation GET endpoint while not logged in
-    response = anon_client.get(
+    # Attempt to access the reservation GET endpoint using a client with no session
+    response = client.get(
         f"/books/{book_id}/reservations/{reservation_id}"
     )
 
@@ -377,7 +386,7 @@ def test_get_reservation_with_anonymous_user_redirects_to_login(
     assert response.status_code == 302
     assert 'http://localhost:5000/auth/login' in response.location
 
-def test_get_reservation_with_non_existent_id_returns_404(reservation_setup):
+def test_get_reservation_with_non_existent_id_returns_404(user_factory):
     """
     GIVEN a logged-in admin user and a correct book_id
     AND a reservation UUID that is valid in format but does not exist in the database
@@ -385,9 +394,16 @@ def test_get_reservation_with_non_existent_id_returns_404(reservation_setup):
     THEN the application should return a 404 Not Found response.
     """
     # Arrange - the test database and documents are set up in the fixture
-    test_admin_client = reservation_setup["test_admin_client"]
-    book_id = reservation_setup["book"]["id"]
-    reservation_id = reservation_setup["reservation"]["id"]
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
 
     # Create a correctly formatted uuid and check it DOESN'T match the real one
     wrong_res_id = str(uuid.uuid4())
@@ -405,7 +421,7 @@ def test_get_reservation_with_non_existent_id_returns_404(reservation_setup):
     result = response.get_json()
     assert "not found" in result.get("description")
 
-def test_delete_reservation_succeeds_for_owner_not_admin(reservation_setup):
+def test_delete_reservation_succeeds_for_owner_not_admin(user_factory):
     """
      INTEGRATION TEST for DELETE /books/{id}/reservations/{id} as a user who owns the reservation.
 
@@ -415,9 +431,16 @@ def test_delete_reservation_succeeds_for_owner_not_admin(reservation_setup):
     with the cancelled reservation data.
     """
     # Arrange - the test database and documents are set up in the fixture
-    owner_client = reservation_setup["owner_client"]
-    book_id = reservation_setup["book"]["id"]
-    reservation_id = reservation_setup["reservation"]["id"]
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
 
     # Act - attempt to access the reservation logged in as the owner
     response = owner_client.delete(
@@ -430,7 +453,7 @@ def test_delete_reservation_succeeds_for_owner_not_admin(reservation_setup):
     assert response_data['id'] == reservation_id
     assert response_data['state'] == 'cancelled'
 
-def test_delete_reservation_succeeds_for_admin_not_owner(reservation_setup):
+def test_delete_reservation_succeeds_for_admin_not_owner(user_factory):
     """
     INTEGRATION TEST for DELETE /books/{id}/reservations/{id} as an admin.
 
@@ -440,9 +463,16 @@ def test_delete_reservation_succeeds_for_admin_not_owner(reservation_setup):
     with the cancelled reservation data.
     """
     # Arrange - the test database and documents are set up in the fixture
-    test_admin_client = reservation_setup["test_admin_client"]
-    book_id = reservation_setup["book"]["id"]
-    reservation_id = reservation_setup["reservation"]["id"]
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
 
     # Act - attempt to access the reservation logged in as the admin
     response = test_admin_client.delete(
@@ -455,11 +485,7 @@ def test_delete_reservation_succeeds_for_admin_not_owner(reservation_setup):
     assert response_data['id'] == reservation_id
     assert response_data['state'] == 'cancelled'
 
-def test_delete_reservation_fails_for_user_not_admin_or_owner(
-        authenticated_client,
-        user_factory,
-        reservation_setup
-):
+def test_delete_reservation_fails_for_user_not_admin_or_owner(user_factory):
     """
      INTEGRATION TEST for DELETE /books/{id}/reservations/{id} as a user
      who does not own the reservation.
@@ -469,12 +495,19 @@ def test_delete_reservation_fails_for_user_not_admin_or_owner(
     THEN the decorators should deny access and the view should return a 403 Forbidden
     """
     # Arrange - the test database and documents are set up in the fixture
-    book_id = reservation_setup["book"]["id"]
-    reservation_id = reservation_setup["reservation"]["id"]
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
 
     # Create a non-admin user who does not own the reservation
-    non_owner_user = user_factory(role='viewer', name='Non-Owner User')
-    non_owner_client = authenticated_client(non_owner_user)
+    non_owner_client = create_authenticated_client(user_factory, role='viewer', name='Non-Owner User')
 
     # Act - attempt to access the reservation logged in as the non_owner
     response = non_owner_client.delete(
