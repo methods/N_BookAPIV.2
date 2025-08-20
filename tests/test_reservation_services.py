@@ -543,3 +543,62 @@ def test_find_all_reservations_for_regular_user_returns_only_their_reservations(
     # Did the function return the correct list of reservations?
     assert len(result) == 2
     assert result[0]['id'] == 'res-1'
+
+def test_find_all_reservations_as_admin_filters_by_user(mocker):
+    """
+    UNIT TEST for the find_all_reservations service function.
+
+    GIVEN an admin user and a filter dict with a user_id
+    WHEN find_all_reservations is called by that user
+    THEN the database find() query should be correctly filtered by the supplied user_id
+    AND a processed list of those reservations should be returned.
+    """
+    # NOTE - test written by AI from docstring
+    # ARRANGE
+    # 1. Mock the dependencies.
+    mock_collection = MagicMock()
+    mocker.patch(
+        'database.reservation_services.get_reservations_collection',
+        return_value=mock_collection
+    )
+    # Mock the processor as a simple pass-through function.
+    mock_processor = mocker.patch('database.reservation_services._process_reservation_for_api')
+    mock_processor.side_effect = lambda doc: doc
+
+    # 2. Define the user making the request. This user MUST be an admin.
+    admin_user = {
+        '_id': 'admin-uuid-789',
+        'roles': ['admin', 'viewer']
+    }
+
+    # 3. Define the filter that the view layer would pass.
+    #    This simulates a request like GET /reservations?user_id=user-uuid-123
+    target_user_id = 'user-uuid-123'
+    query_filters = {'user_id': target_user_id}
+
+    # 4. Define the data we expect the database to return for this specific query.
+    filtered_reservations = [
+        {'id': 'res-1', 'user_id': target_user_id},
+        {'id': 'res-2', 'user_id': target_user_id}
+    ]
+    mock_collection.find.return_value = filtered_reservations
+
+    # ACT
+    # Call the service function with the admin user and the filters.
+    result = reservation_services.find_all_reservations(
+        current_user=admin_user,
+        filters=query_filters
+    )
+
+    # ASSERT
+    # 1. This is the most important assertion: Was the find() method
+    #    called with a query that was correctly filtered by the user_id?
+    expected_db_filter = {'user_id': target_user_id}
+    mock_collection.find.assert_called_once_with(expected_db_filter)
+
+    # 2. Was the processing function called for each document found?
+    assert mock_processor.call_count == 2
+
+    # 3. Did the function return the correct, filtered list of reservations?
+    assert len(result) == 2
+    assert result[0]['id'] == 'res-1'
