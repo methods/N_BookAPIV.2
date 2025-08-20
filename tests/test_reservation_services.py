@@ -574,7 +574,10 @@ def test_find_all_reservations_as_admin_filters_by_user(mocker):
     # 3. Define the filter that the view layer would pass.
     #    This simulates a request like GET /reservations?user_id=user-uuid-123
     target_user_id = 'user-uuid-123'
-    query_filters = {'user_id': target_user_id}
+    query_filters = {
+        'user_id': target_user_id,
+        'state': 'reserved'
+    }
 
     # 4. Define the data we expect the database to return for this specific query.
     filtered_reservations = [
@@ -593,7 +596,7 @@ def test_find_all_reservations_as_admin_filters_by_user(mocker):
     # ASSERT
     # 1. This is the most important assertion: Was the find() method
     #    called with a query that was correctly filtered by the user_id?
-    expected_db_filter = {'user_id': target_user_id}
+    expected_db_filter = {'user_id': target_user_id, 'state': 'reserved'}
     mock_collection.find.assert_called_once_with(expected_db_filter)
 
     # 2. Was the processing function called for each document found?

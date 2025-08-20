@@ -166,6 +166,10 @@ def find_all_reservations(current_user: dict, filters: dict = None):
         # If the user is not an admin, use their user_id to filter
         query['user_id'] = current_user['_id']
 
+    # Allow filtering by state for all users
+    if filters and 'state' in filters:
+        query['state'] = filters['state']
+
     # Execute the query
     cursor = reservations_collection.find(query)
 
