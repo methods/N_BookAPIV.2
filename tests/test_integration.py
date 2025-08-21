@@ -78,40 +78,6 @@ def test_user_factory():
     # The fixture returns the inner function
     return _create_user
 
-@pytest.fixture(name="authenticated_client")
-def authenticated_client_for_testing(client):
-    """
-    A factory fixture that returns a function to create an authenticated
-    client for a given user document.
-    """
-
-    def _create_authenticated_client(user_doc):
-        """Logs in the given user."""
-        with client.session_transaction() as sess:
-            sess['user_id'] = str(user_doc['_id'])
-        return client  # Return the now-authenticated client
-
-    return _create_authenticated_client
-
-
-@pytest.fixture(name="logout_client")
-def logged_out_client(client):
-    """
-    Provides a test client that has a session with user_id set to None,
-    simulating a logged-out user or a new visitor.
-    """
-    # Open a session transaction. This is crucial because it ensures
-    # the client is interacting with the session machinery.
-    def _create_logged_out_client(user_doc):
-        """Logs in the given user."""
-        with client.session_transaction() as sess:
-            sess['user_id'] = str(user_doc['_id'])
-            sess['user_id'] = None
-        return client  # Return the now-authenticated client
-
-    return _create_logged_out_client
-
-
 def create_authenticated_client(
         user_factory,
         role='viewer',
@@ -121,7 +87,9 @@ def create_authenticated_client(
     A test helper that creates a NEW, ISOLATED, and AUTHENTICATED client.
 
        Args:
-        ...
+        user_factory (fixture): A fixture that adds users to the database.
+        role (str, optional): The role of the user. Defaults to 'viewer'.
+        name (str, optional): The name of the user. Defaults to 'Test User'.
         include_user_doc (bool): If True, returns a tuple of (client, user_doc).
                                  If False (default), returns only the client.
     """
