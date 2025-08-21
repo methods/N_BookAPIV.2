@@ -262,7 +262,7 @@ def test_get_reservation_succeeds_for_admin(_mongo_client, user_factory):
     THEN the decorators should grant access and the view should return a 200 OK
     with the correct reservation data.
     """
-    # Arrange - the test database and documents are set up in the fixture
+    # Arrange
     test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
     owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
 
@@ -293,7 +293,7 @@ def test_get_reservation_succeeds_for_owner_not_admin(_mongo_client, user_factor
     THEN the decorators should grant access and the view should return a 200 OK
     with the correct reservation data.
     """
-    # Arrange - the test database and documents are set up in the fixture
+    # Arrange
     test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
     owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
 
@@ -324,7 +324,7 @@ def test_get_reservation_fails_for_user_not_admin_or_owner(_mongo_client, user_f
     WHEN a GET request is made to the reservation's specific URL
     THEN the decorators should deny access and the view should return 403 Forbidden
     """
-    # Arrange - the test database and documents are set up in the fixture
+    # Arrange
     test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
     owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
 
@@ -365,7 +365,7 @@ def test_get_reservation_with_anonymous_user_redirects_to_login(
     THEN the login_required decorator should deny access
     AND the view should return a 302 redirect to the login page.
     """
-    # Arrange - the test database and documents are set up in the fixture
+    # Arrange
     test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
     owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
 
@@ -395,7 +395,7 @@ def test_get_reservation_with_non_existent_id_returns_404(_mongo_client, user_fa
     WHEN a GET request is made to the reservation's specific URL
     THEN the application should return a 404 Not Found response.
     """
-    # Arrange - the test database and documents are set up in the fixture
+    # Arrange
     test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
     owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
 
@@ -432,7 +432,7 @@ def test_delete_reservation_succeeds_for_owner_not_admin(_mongo_client, user_fac
     THEN the decorators should grant access and the view should return a 200 OK
     with the cancelled reservation data.
     """
-    # Arrange - the test database and documents are set up in the fixture
+    # Arrange
     test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
     owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
 
@@ -464,7 +464,7 @@ def test_delete_reservation_succeeds_for_admin_not_owner(_mongo_client, user_fac
     THEN the decorators should grant access and the view should return a 200 OK
     with the cancelled reservation data.
     """
-    # Arrange - the test database and documents are set up in the fixture
+    # Arrange
     test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
     owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
 
@@ -542,7 +542,7 @@ def test_delete_reservation_as_anonymous_user_redirects_to_login(_mongo_client, 
     assert response.status_code == 302
     assert "http://localhost:5000/auth/login" in response.location
 
-def test_get_all_reservations_as_owner_not_admin(_mongo_client,user_factory):
+def test_get_all_reservations_as_owner_not_admin(_mongo_client, user_factory):
     """
     INTEGRATION TEST for GET /reservations as an owner not an admin.
 
@@ -584,3 +584,50 @@ def test_get_all_reservations_as_owner_not_admin(_mongo_client,user_factory):
     assert len(response_data) == 1
     returned_reservation = response_data[0]
     assert returned_reservation['id'] == reservation_id
+
+def test_get_all_reservations_as_admin(_mongo_client, user_factory):
+    """
+    INTEGRATION TEST for GET /reservations as an admin not the owner.
+
+    GIVEN a logged-in admin user and existing reservations
+    WHEN a GET request is made to the reservations endpoint
+    THEN access should be granted and a list of reservations should be returned
+    AND the list should contain all existing reservations.
+    """
+    # Arrange
+    # Set up the clients for the owner, admin, and non-owner
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+    non_owner_client = create_authenticated_client(
+        user_factory, role='viewer', name='Non-Owner User'
+    )
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    other_book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert other_book_response.status_code == 201
+    other_book_id = other_book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
+
+    other_res_response = non_owner_client.post(f"/books/{other_book_id}/reservations")
+    assert other_res_response.status_code == 201
+    other_res_id = other_res_response.get_json()['id']
+
+    # Act
+    admin_response = test_admin_client.get("/reservations")
+
+    # Assert
+    assert admin_response.status_code == 200
+    admin_response_data = admin_response.get_json()
+    assert isinstance(admin_response_data, list)
+    assert len(admin_response_data) == 2
+    returned_reservation = admin_response_data[0]
+    assert returned_reservation['id'] == reservation_id
+    other_ret_reservation = admin_response_data[1]
+    assert other_ret_reservation['id'] == other_res_id
+
