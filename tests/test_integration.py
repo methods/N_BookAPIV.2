@@ -108,6 +108,37 @@ def create_authenticated_client(
         return new_client, user_doc
     return new_client
 
+@pytest.fixture(name="reservation_setup")
+def reservation_scenario(user_factory, authenticated_client):
+    """
+    Sets up a complete scenario for reservation tests and returns the
+    key components in a dictionary.
+    """
+    # 1. Create the user personas and clients
+    owner_user = user_factory(role='viewer', name='Scenario Owner')
+    admin_user = user_factory(role='admin', name='Scenario Admin')
+    owner_client = authenticated_client(owner_user)
+    test_admin_client = authenticated_client(admin_user)
+
+    # 2. Use the admin to create the book
+    book_res = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_res.status_code == 201
+    created_book = book_res.get_json()
+
+    # 3. Use the owner to create the reservation
+    res_res = owner_client.post(f"/books/{created_book['id']}/reservations")
+    assert res_res.status_code == 201
+    created_reservation = res_res.get_json()
+
+    # 4. Bundle everything into a simple dictionary and return it.
+    return {
+        "test_admin_client": test_admin_client,
+        "owner_client": owner_client,
+        "owner_user": owner_user,
+        "book": created_book,
+        "reservation": created_reservation
+    }
+
 # Define multiple book payloads for testing
 book_payloads = [
     {
@@ -264,6 +295,7 @@ def test_get_reservation_succeeds_for_admin(_mongo_client, user_factory):
     assert response_data['id'] == reservation_id
 
 def test_get_reservation_succeeds_for_owner_not_admin(_mongo_client, user_factory):
+
     """
      INTEGRATION TEST for GET /books/{id}/reservations/{id} as a user who owns the reservation.
 
@@ -355,7 +387,7 @@ def test_get_reservation_with_anonymous_user_redirects_to_login(
     reservation_response = owner_client.post(f"/books/{book_id}/reservations")
     assert reservation_response.status_code == 201
     reservation_id = reservation_response.get_json()['id']
-
+    
     # Act
     # Attempt to access the reservation GET endpoint using a client with no session
     response = client.get(
@@ -504,7 +536,7 @@ def test_delete_reservation_fails_for_user_not_admin_or_owner(_mongo_client, use
     assert response_data["code"] == 403
     assert response_data["name"] == "Forbidden"
     assert "don't have the permission" in response_data["description"]
-
+    
 def test_delete_reservation_as_anonymous_user_redirects_to_login(_mongo_client, client):
     """
     INTEGRATION SANITY CHECK:
