@@ -112,9 +112,14 @@ def logged_out_client(client):
     return _create_logged_out_client
 
 
-def create_authenticated_client(user_factory, role='viewer', name='Test User'):
+def create_authenticated_client(user_factory, role='viewer', name='Test User', include_user_doc=False):
     """
     A test helper that creates a NEW, ISOLATED, and AUTHENTICATED client.
+
+       Args:
+        ...
+        include_user_doc (bool): If True, returns a tuple of (client, user_doc).
+                                 If False (default), returns only the client.
     """
     # Create the user data.
     user_doc = user_factory(role=role, name=name)
@@ -126,8 +131,11 @@ def create_authenticated_client(user_factory, role='viewer', name='Test User'):
     with new_client.session_transaction() as sess:
         sess['user_id'] = str(user_doc['_id'])
 
-    # Return the fully prepared client.
-    return new_client
+    # Return the fully prepared client and add the user_doc if flagged
+    if include_user_doc:
+        return new_client, user_doc
+    else:
+        return new_client
 
 # Define multiple book payloads for testing
 book_payloads = [
@@ -563,7 +571,7 @@ def test_get_all_reservations_as_owner_not_admin(_mongo_client, user_factory):
     assert book_response.status_code == 201
     book_id = book_response.get_json()['id']
 
-    other_book_response = test_admin_client.post("/books", json=book_payloads[0])
+    other_book_response = test_admin_client.post("/books", json=book_payloads[1])
     assert other_book_response.status_code == 201
 
     reservation_response = owner_client.post(f"/books/{book_id}/reservations")
@@ -606,7 +614,7 @@ def test_get_all_reservations_as_admin(_mongo_client, user_factory):
     assert book_response.status_code == 201
     book_id = book_response.get_json()['id']
 
-    other_book_response = test_admin_client.post("/books", json=book_payloads[0])
+    other_book_response = test_admin_client.post("/books", json=book_payloads[1])
     assert other_book_response.status_code == 201
     other_book_id = other_book_response.get_json()['id']
 
@@ -631,3 +639,50 @@ def test_get_all_reservations_as_admin(_mongo_client, user_factory):
     other_ret_reservation = admin_response_data[1]
     assert other_ret_reservation['id'] == other_res_id
 
+def test_get_all_reservations_as_admin_with_user_filter_succeeds(_mongo_client, user_factory):
+    """
+    INTEGRATION TEST for GET /reservations as an admin with user filter
+
+    GIVEN a logged-in admin user and existing reservations
+    WHEN a GET request is made to the reservations endpoint
+    WITH a user_id filter sent as a query parameter
+    THEN access should be granted and a list of reservations should be returned
+    AND the list should contain only reservations owned by the filtered user.
+    """
+    # Arrange
+    # Set up the clients for the owner, admin, and non-owner
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client, owner_user = create_authenticated_client(
+        user_factory, role='viewer', name='Owner', include_user_doc=True
+    )
+    non_owner_client = create_authenticated_client(
+        user_factory, role='viewer', name='Non-Owner User'
+    )
+    owner_user_id = str(owner_user['_id'])
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    other_book_response = test_admin_client.post("/books", json=book_payloads[1])
+    assert other_book_response.status_code == 201
+    other_book_id = other_book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
+
+    other_res_response = non_owner_client.post(f"/books/{other_book_id}/reservations")
+    assert other_res_response.status_code == 201
+    other_res_id = other_res_response.get_json()['id']
+
+    # Act
+    admin_response = test_admin_client.get(f"/reservations?user_id={owner_user_id}")
+
+    # Assert
+    assert admin_response.status_code == 200
+    admin_response_data = admin_response.get_json()
+    assert isinstance(admin_response_data, list)
+    assert len(admin_response_data) == 1
+    returned_reservation = admin_response_data[0]
+    assert returned_reservation['id'] == reservation_id
