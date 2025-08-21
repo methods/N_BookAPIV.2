@@ -160,8 +160,7 @@ def test_login_required_decorator_returns_401_for_api_client(_client):
     ):
         @login_required
         def fake_protected_view():
-            # This part of the code should not be executed
-            return jsonify(message="Success"), 200
+            return jsonify(message="This should never be returned.")
 
         # ACT
         # Call the decorated function
@@ -240,6 +239,52 @@ def test_login_required_with_invalid_user_id_clears_session_and_redirects(mocker
         assert 'http://localhost:5000/auth/login' in response.location
 
         # 3. After the redirect, the session should be empty.
+        assert 'user_id' not in session
+
+def test_login_required_with_invalid_user_id_clears_session_and_returns_401_for_api_client(
+        mocker,
+        _client
+):
+    """
+    If a user has an invalid user_id, when they access a protected route,
+    session should be cleared + they should be redirected to the login page.
+    """
+    # Arrange
+    # Mock the database service to fail the user lookup
+    mock_find_user = mocker.patch('auth.decorators.user_services.find_user_by_id')
+    mock_find_user.return_value = None
+    # Mock invalid user_id to be passed
+    invalid_user_id = str(ObjectId())
+
+    with app.test_request_context(
+            '/protected-route',
+            headers={'Accept': 'application/json'}
+    ):
+        # Manually set the session
+        session['user_id'] = str(invalid_user_id)
+        # Define the decorated fake view
+        @login_required
+        def fake_protected_view():
+            return jsonify(message="This should never be returned.")
+
+        # Act
+        response = fake_protected_view()
+
+        # Assert
+        # 1. Was the database queried with the correct ID from the session?
+        mock_find_user.assert_called_once_with(str(invalid_user_id))
+
+        # 2. Check for the 401 Unauthorized status code.
+        assert response.status_code == 401
+
+        # 3. Check that the response is correctly formatted as JSON.
+        assert response.content_type == "application/json"
+
+        # 4. Check the content of the JSON error body.
+        response_data = response.get_json()
+        assert response_data == {"error": "Authentication required."}
+
+        # 5. After the redirect, the session should be empty.
         assert 'user_id' not in session
 
 def test_roles_required_denies_user_without_correct_role(_client):
