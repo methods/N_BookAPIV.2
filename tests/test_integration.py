@@ -708,3 +708,29 @@ def test_get_all_reservations_as_anonymous_user_redirects(client):
     # Assert
     assert response.status_code == 302
     assert "http://localhost:5000/auth/login" in response.location
+
+def test_get_all_reservations_for_user_with_no_reservations_returns_empty_list(
+        _mongo_client,
+        user_factory
+):
+    """
+    INTEGRATION TEST for GET /reservations for a user without reservations
+
+    GIVEN a logged-in non-admin user with no reservations
+    WHEN a GET request is made to the reservations endpoint
+    THEN access should be granted
+    AND an empty list should be returned with a 200 response code
+    """
+    # Arrange
+    # Set up the owner client
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+
+    # Act
+    # Call the reservations endpoint as this user
+    response = owner_client.get("/reservations")
+
+    # Assert
+    assert response.status_code == 200
+    response_data = response.get_json()
+    assert isinstance(response_data, list)
+    assert len(response_data) == 0
