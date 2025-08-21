@@ -91,6 +91,7 @@ def create_reservation_for_book(book_id, user: dict, books_collection):
     result = reservations_collection.insert_one(new_reservation_doc)
     created_reservation = copy.deepcopy(new_reservation_doc)
     created_reservation['_id'] = result.inserted_id
+    print(f"created_reservation: {created_reservation}")
     created_reservation.pop('_id', None)
     created_reservation.pop('user_id', None)
     created_reservation['reservedAt'] = created_reservation['reservedAt'].isoformat()
@@ -159,13 +160,13 @@ def find_all_reservations(current_user: dict, filters: dict = None):
     # Check if the user is an admin
     is_admin = 'admin' in current_user.get('roles', [])
 
-    # If the user is an admin, import any user_id filters they've asked for
-    if is_admin:
-        if filters and 'user_id' in filters:
-            query['user_id'] = ObjectId(filters['user_id'])
+    # If the user is not an admin, use their user_id to filter
+    if not is_admin:
+        query['user_id'] = current_user['_id']
     else:
-        # If the user is not an admin, use their user_id to filter
-        query['user_id'] = ObjectId(current_user['_id'])
+        # If the user is an admin, import any user_id filters they've asked for
+        if filters and 'user_id' in filters:
+            query['user_id'] = filters['user_id']
 
     # Allow filtering by state for all users
     if filters and 'state' in filters:

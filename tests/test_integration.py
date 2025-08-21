@@ -352,11 +352,7 @@ def test_get_reservation_fails_for_user_not_admin_or_owner(user_factory):
     assert response_data["name"] == "Forbidden"
     assert "don't have the permission" in response_data["description"]
 
-def test_get_reservation_with_anonymous_user_redirects_to_login(
-        client,
-        user_factory,
-        logout_client
-):
+def test_get_reservation_with_anonymous_user_redirects_to_login(client, user_factory):
     """
     GIVEN no logged-in user
     WHEN a GET request is made to the reservation's specific URL
