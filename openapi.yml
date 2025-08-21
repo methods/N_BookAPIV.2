@@ -572,11 +572,8 @@ paths:
                 type: array
                 items:
                   $ref: '#/components/schemas/ReservationOutput'
-        '302':
-          description: >
-            Found (Redirect). The user is not authenticated. The `Location` header
-            will point to the /auth/login endpoint.
-
+        '401':
+          description: Unauthorized - The user is not logged in.
   /books/{book_id}/reservations/{reservation_id}:
     parameters:
       - name: book_id
@@ -611,10 +608,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReservationOutput'
-        '302':
-          description: >
-            Found (Redirect). The user is not authenticated. The `Location` header
-            will point to the /auth/login endpoint.
+        '401':
+          description: Unauthorized - The user is not logged in.
         '403':
           description: Forbidden - The user is not the owner of this reservation and is not an admin.
         '404':
@@ -637,10 +632,8 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/ReservationOutput'
-        '302':
-          description: >
-            Found (Redirect). The user is not authenticated. The `Location` header
-            will point to the /auth/login endpoint.
+        '401':
+          description: Unauthorized - The user is not logged in.
         '403':
           description: Forbidden - The user is not the owner of this reservation and is not an admin.
         '404':
