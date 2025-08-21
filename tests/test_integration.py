@@ -252,7 +252,7 @@ def test_update_soft_deleted_book_returns_404(mongo_client, admin_client):
     assert book_in_db['title'] == 'The Deleted Book'  # The title was NOT updated
     assert book_in_db['state'] == 'deleted'
 
-def test_get_reservation_succeeds_for_admin(user_factory):
+def test_get_reservation_succeeds_for_admin(mongo_client, user_factory):
 
     """
     INTEGRATION TEST for GET /books/{id}/reservations/{id} as an admin.
@@ -284,7 +284,7 @@ def test_get_reservation_succeeds_for_admin(user_factory):
     response_data = response.get_json()
     assert response_data['id'] == reservation_id
 
-def test_get_reservation_succeeds_for_owner_not_admin(user_factory):
+def test_get_reservation_succeeds_for_owner_not_admin(mongo_client, user_factory):
     """
      INTEGRATION TEST for GET /books/{id}/reservations/{id} as a user who owns the reservation.
 
@@ -315,7 +315,7 @@ def test_get_reservation_succeeds_for_owner_not_admin(user_factory):
     response_data = response.get_json()
     assert response_data['id'] == reservation_id
 
-def test_get_reservation_fails_for_user_not_admin_or_owner(user_factory):
+def test_get_reservation_fails_for_user_not_admin_or_owner(mongo_client, user_factory):
     """
      INTEGRATION TEST for GET /books/{id}/reservations/{id} as a user
      who does not own the reservation.
@@ -352,7 +352,7 @@ def test_get_reservation_fails_for_user_not_admin_or_owner(user_factory):
     assert response_data["name"] == "Forbidden"
     assert "don't have the permission" in response_data["description"]
 
-def test_get_reservation_with_anonymous_user_redirects_to_login(client, user_factory):
+def test_get_reservation_with_anonymous_user_redirects_to_login(mongo_client, client, user_factory):
     """
     GIVEN no logged-in user
     WHEN a GET request is made to the reservation's specific URL
@@ -382,7 +382,7 @@ def test_get_reservation_with_anonymous_user_redirects_to_login(client, user_fac
     assert response.status_code == 302
     assert 'http://localhost:5000/auth/login' in response.location
 
-def test_get_reservation_with_non_existent_id_returns_404(user_factory):
+def test_get_reservation_with_non_existent_id_returns_404(mongo_client, user_factory):
     """
     GIVEN a logged-in admin user and a correct book_id
     AND a reservation UUID that is valid in format but does not exist in the database
@@ -417,7 +417,7 @@ def test_get_reservation_with_non_existent_id_returns_404(user_factory):
     result = response.get_json()
     assert "not found" in result.get("description")
 
-def test_delete_reservation_succeeds_for_owner_not_admin(user_factory):
+def test_delete_reservation_succeeds_for_owner_not_admin(mongo_client, user_factory):
     """
      INTEGRATION TEST for DELETE /books/{id}/reservations/{id} as a user who owns the reservation.
 
@@ -449,7 +449,7 @@ def test_delete_reservation_succeeds_for_owner_not_admin(user_factory):
     assert response_data['id'] == reservation_id
     assert response_data['state'] == 'cancelled'
 
-def test_delete_reservation_succeeds_for_admin_not_owner(user_factory):
+def test_delete_reservation_succeeds_for_admin_not_owner(mongo_client, user_factory):
     """
     INTEGRATION TEST for DELETE /books/{id}/reservations/{id} as an admin.
 
@@ -481,7 +481,7 @@ def test_delete_reservation_succeeds_for_admin_not_owner(user_factory):
     assert response_data['id'] == reservation_id
     assert response_data['state'] == 'cancelled'
 
-def test_delete_reservation_fails_for_user_not_admin_or_owner(user_factory):
+def test_delete_reservation_fails_for_user_not_admin_or_owner(mongo_client, user_factory):
     """
      INTEGRATION TEST for DELETE /books/{id}/reservations/{id} as a user
      who does not own the reservation.
@@ -518,7 +518,7 @@ def test_delete_reservation_fails_for_user_not_admin_or_owner(user_factory):
     assert response_data["name"] == "Forbidden"
     assert "don't have the permission" in response_data["description"]
 
-def test_delete_reservation_as_anonymous_user_redirects_to_login(client):
+def test_delete_reservation_as_anonymous_user_redirects_to_login(mongo_client, client):
     """
     INTEGRATION SANITY CHECK:
     Verifies that the @login_required decorator is active on the DELETE endpoint.
@@ -533,3 +533,46 @@ def test_delete_reservation_as_anonymous_user_redirects_to_login(client):
     # Assert
     assert response.status_code == 302
     assert "http://localhost:5000/auth/login" in response.location
+
+def test_get_all_reservations_as_owner_not_admin(mongo_client,user_factory):
+    """
+    INTEGRATION TEST for GET /reservations as an owner not an admin.
+
+    GIVEN a logged-in user and existing reservations, not all owned by this user
+    WHEN a GET request is made to the reservations endpoint
+    THEN access should be granted and a list of reservations should be returned
+    AND the list should ONLY contain reservations owned by this user.
+    """
+    # Arrange
+    # Set up the clients for the owner, admin, and non-owner
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+    non_owner_client = create_authenticated_client(user_factory, role='viewer', name='Non-Owner User')
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    other_book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert other_book_response.status_code == 201
+    other_book_id = other_book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
+
+    other_res_response = non_owner_client.post(f"/books/{book_id}/reservations")
+    assert other_res_response.status_code == 201
+    other_res_id = other_res_response.get_json()['id']
+
+    # Act
+    # Attempt to access the reservations GET all endpoint using the owner client
+    response = owner_client.get("/reservations")
+
+    # Assert
+    assert response.status_code == 200
+    response_data = response.get_json()
+    assert isinstance(response_data, list)
+    assert len(response_data) == 1
+    returned_reservation = response_data[0]
+    assert returned_reservation['id'] == reservation_id
