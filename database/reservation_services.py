@@ -2,7 +2,6 @@
 from datetime import datetime, timezone
 import uuid
 import copy
-from bson.objectid import ObjectId
 from pymongo import MongoClient, ReturnDocument
 from pymongo.errors import ConnectionFailure
 from . import mongo_helper
