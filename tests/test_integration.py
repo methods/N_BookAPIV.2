@@ -112,7 +112,11 @@ def logged_out_client(client):
     return _create_logged_out_client
 
 
-def create_authenticated_client(user_factory, role='viewer', name='Test User', include_user_doc=False):
+def create_authenticated_client(
+        user_factory,
+        role='viewer',
+        name='Test User',
+        include_user_doc=False):
     """
     A test helper that creates a NEW, ISOLATED, and AUTHENTICATED client.
 
@@ -134,8 +138,7 @@ def create_authenticated_client(user_factory, role='viewer', name='Test User', i
     # Return the fully prepared client and add the user_doc if flagged
     if include_user_doc:
         return new_client, user_doc
-    else:
-        return new_client
+    return new_client
 
 # Define multiple book payloads for testing
 book_payloads = [
@@ -593,6 +596,8 @@ def test_get_all_reservations_as_owner_not_admin(_mongo_client, user_factory):
     returned_reservation = response_data[0]
     assert returned_reservation['id'] == reservation_id
 
+    # Complex test requiring many variables
+    # pylint: disable=too-many-locals
 def test_get_all_reservations_as_admin(_mongo_client, user_factory):
     """
     INTEGRATION TEST for GET /reservations as an admin not the owner.
@@ -639,6 +644,8 @@ def test_get_all_reservations_as_admin(_mongo_client, user_factory):
     other_ret_reservation = admin_response_data[1]
     assert other_ret_reservation['id'] == other_res_id
 
+    # Complex test requiring many variables
+    # pylint: disable=too-many-locals
 def test_get_all_reservations_as_admin_with_user_filter_succeeds(_mongo_client, user_factory):
     """
     INTEGRATION TEST for GET /reservations as an admin with user filter
@@ -674,7 +681,6 @@ def test_get_all_reservations_as_admin_with_user_filter_succeeds(_mongo_client, 
 
     other_res_response = non_owner_client.post(f"/books/{other_book_id}/reservations")
     assert other_res_response.status_code == 201
-    other_res_id = other_res_response.get_json()['id']
 
     # Act
     admin_response = test_admin_client.get(f"/reservations?user_id={owner_user_id}")
@@ -686,3 +692,19 @@ def test_get_all_reservations_as_admin_with_user_filter_succeeds(_mongo_client, 
     assert len(admin_response_data) == 1
     returned_reservation = admin_response_data[0]
     assert returned_reservation['id'] == reservation_id
+
+def test_get_all_reservations_as_anonymous_user_redirects(client):
+    """
+    INTEGRATION TEST for GET /reservations as an anonymous user.
+
+    GIVEN an anonymous client
+    WHEN a GET request is made to the reservations endpoint
+    THEN access should be denied
+    AND the user should be redirected to the login page
+    """
+    # Act
+    response = client.get("/reservations")
+
+    # Assert
+    assert response.status_code == 302
+    assert "http://localhost:5000/auth/login" in response.location
