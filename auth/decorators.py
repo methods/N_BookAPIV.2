@@ -23,9 +23,10 @@ def login_required(f):
         user = user_services.find_user_by_id(user_id)
         if user is None:
             session.clear()
-            response = jsonify(error="Authentication required.")
-            response.status_code = 401
-            return response
+            if 'application/json' in request.accept_mimetypes:
+                response = jsonify(error="Authentication required.")
+                response.status_code = 401
+                return response
             return redirect('http://localhost:5000/auth/login')
 
         # Store the user object on 'g' for this request

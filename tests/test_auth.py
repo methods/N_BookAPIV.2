@@ -146,6 +146,38 @@ def test_login_required_decorator_redirects_anon_user(_client):
     # 2. Check that the redirect location is the login page
     assert response.location == 'http://localhost:5000/auth/login'
 
+def test_login_required_decorator_returns_401_for_api_client(_client):
+    """
+    GIVEN an anonymous user making an API request (Accept: application/json)
+    WHEN they access a protected route
+    THEN they should receive a 401 Unauthorized with a JSON error body.
+    """
+    # ARRANGE
+    # The 'headers' argument simulates an API client.
+    with app.test_request_context(
+            '/protected-route',
+            headers={'Accept': 'application/json'}
+    ):
+        @login_required
+        def fake_protected_view():
+            # This part of the code should not be executed
+            return jsonify(message="Success"), 200
+
+        # ACT
+        # Call the decorated function
+        response = fake_protected_view()
+
+    # ASSERT
+    # 1. Check for the 401 Unauthorized status code.
+    assert response.status_code == 401
+
+    # 2. Check that the response is correctly formatted as JSON.
+    assert response.content_type == "application/json"
+
+    # 3. Check the content of the JSON error body.
+    response_data = response.get_json()
+    assert response_data == {"error": "Authentication required."}
+
 def test_login_required_decorator_allows_authenticated_user(mocker, _client):
     """
     If a user is logged in correctly, when they access a protected route,
