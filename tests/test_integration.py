@@ -387,7 +387,7 @@ def test_get_reservation_with_anonymous_user_redirects_to_login(
     reservation_response = owner_client.post(f"/books/{book_id}/reservations")
     assert reservation_response.status_code == 201
     reservation_id = reservation_response.get_json()['id']
-    
+
     # Act
     # Attempt to access the reservation GET endpoint using a client with no session
     response = client.get(
@@ -536,7 +536,7 @@ def test_delete_reservation_fails_for_user_not_admin_or_owner(_mongo_client, use
     assert response_data["code"] == 403
     assert response_data["name"] == "Forbidden"
     assert "don't have the permission" in response_data["description"]
-    
+
 def test_delete_reservation_as_anonymous_user_redirects_to_login(_mongo_client, client):
     """
     INTEGRATION SANITY CHECK:
