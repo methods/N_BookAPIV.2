@@ -42,7 +42,7 @@ def admin_client_fixture(client, mocker):
     # The 'client' object that was passed in now has the session cookie.
     yield client
 
-@pytest.fixture(name="mongo_client")
+@pytest.fixture(name="_mongo_client")
 def mongo_client_fixture():
     """Provides a raw MongoDB client for direct DB access in tests."""
     # Connect to mongoDB running locally in docker
@@ -78,38 +78,35 @@ def test_user_factory():
     # The fixture returns the inner function
     return _create_user
 
-@pytest.fixture(name="authenticated_client")
-def authenticated_client_for_testing(client):
+def create_authenticated_client(
+        user_factory,
+        role='viewer',
+        name='Test User',
+        include_user_doc=False):
     """
-    A factory fixture that returns a function to create an authenticated
-    client for a given user document.
+    A test helper that creates a NEW, ISOLATED, and AUTHENTICATED client.
+
+       Args:
+        user_factory (fixture): A fixture that adds users to the database.
+        role (str, optional): The role of the user. Defaults to 'viewer'.
+        name (str, optional): The name of the user. Defaults to 'Test User'.
+        include_user_doc (bool): If True, returns a tuple of (client, user_doc).
+                                 If False (default), returns only the client.
     """
+    # Create the user data.
+    user_doc = user_factory(role=role, name=name)
 
-    def _create_authenticated_client(user_doc):
-        """Logs in the given user."""
-        with client.session_transaction() as sess:
-            sess['user_id'] = str(user_doc['_id'])
-        return client  # Return the now-authenticated client
+    # Create a brand new, fresh client instance.
+    new_client = app.test_client()
 
-    return _create_authenticated_client
+    # Log the user into the new client
+    with new_client.session_transaction() as sess:
+        sess['user_id'] = str(user_doc['_id'])
 
-
-@pytest.fixture(name="logout_client")
-def logged_out_client(client):
-    """
-    Provides a test client that has a session with user_id set to None,
-    simulating a logged-out user or a new visitor.
-    """
-    # Open a session transaction. This is crucial because it ensures
-    # the client is interacting with the session machinery.
-    def _create_logged_out_client(user_doc):
-        """Logs in the given user."""
-        with client.session_transaction() as sess:
-            sess['user_id'] = str(user_doc['_id'])
-            sess['user_id'] = None
-        return client  # Return the now-authenticated client
-
-    return _create_logged_out_client
+    # Return the fully prepared client and add the user_doc if flagged
+    if include_user_doc:
+        return new_client, user_doc
+    return new_client
 
 @pytest.fixture(name="reservation_setup")
 def reservation_scenario(user_factory, authenticated_client):
@@ -169,9 +166,9 @@ book_payloads = [
     }
 ]
 
-def test_post_route_inserts_to_mongodb(mongo_client, admin_client):
+def test_post_route_inserts_to_mongodb(_mongo_client, admin_client):
     # # Set up the test DB and collection
-    db = mongo_client['test_database']
+    db = _mongo_client['test_database']
     collection = db['test_books']
 
     # Act: send the POST request:
@@ -219,13 +216,13 @@ def test_get_all_books_gets_from_mongodb(admin_client):
     book_titles = [book['title'] for book in response_data['items']]
     assert "The Midnight Library" in book_titles
 
-def test_update_soft_deleted_book_returns_404(mongo_client, admin_client):
+def test_update_soft_deleted_book_returns_404(_mongo_client, admin_client):
     """
     GIVEN a book exists in the DB but is marked as 'deleted'
     WHEN a PUT request is made to update it
     THEN the API should return a 404 Not Found and the book should NOT be updated.
     """
-    db = mongo_client['test_database']
+    db = _mongo_client['test_database']
     collection = db['test_books']
     # Arrange
     # Insert a soft-deleted book into the test database.
@@ -265,7 +262,7 @@ def test_update_soft_deleted_book_returns_404(mongo_client, admin_client):
     assert book_in_db['title'] == 'The Deleted Book'  # The title was NOT updated
     assert book_in_db['state'] == 'deleted'
 
-def test_get_reservation_succeeds_for_admin(reservation_setup):
+def test_get_reservation_succeeds_for_admin(_mongo_client, user_factory):
 
     """
     INTEGRATION TEST for GET /books/{id}/reservations/{id} as an admin.
@@ -275,10 +272,17 @@ def test_get_reservation_succeeds_for_admin(reservation_setup):
     THEN the decorators should grant access and the view should return a 200 OK
     with the correct reservation data.
     """
-    # Arrange - the test database and documents are set up in the fixture
-    test_admin_client = reservation_setup["test_admin_client"]
-    book_id = reservation_setup["book"]["id"]
-    reservation_id = reservation_setup["reservation"]["id"]
+    # Arrange
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
 
     # ACT
     response = test_admin_client.get(
@@ -290,7 +294,8 @@ def test_get_reservation_succeeds_for_admin(reservation_setup):
     response_data = response.get_json()
     assert response_data['id'] == reservation_id
 
-def test_get_reservation_succeeds_for_owner_not_admin(reservation_setup):
+def test_get_reservation_succeeds_for_owner_not_admin(_mongo_client, user_factory):
+
     """
      INTEGRATION TEST for GET /books/{id}/reservations/{id} as a user who owns the reservation.
 
@@ -299,10 +304,17 @@ def test_get_reservation_succeeds_for_owner_not_admin(reservation_setup):
     THEN the decorators should grant access and the view should return a 200 OK
     with the correct reservation data.
     """
-    # Arrange - the test database and documents are set up in the fixture
-    owner_client = reservation_setup["owner_client"]
-    book_id = reservation_setup["book"]["id"]
-    reservation_id = reservation_setup["reservation"]["id"]
+    # Arrange
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
 
     # Act - attempt to access the reservation logged in as the owner
     response = owner_client.get(
@@ -314,11 +326,7 @@ def test_get_reservation_succeeds_for_owner_not_admin(reservation_setup):
     response_data = response.get_json()
     assert response_data['id'] == reservation_id
 
-def test_get_reservation_fails_for_user_not_admin_or_owner(
-        authenticated_client,
-        user_factory,
-        reservation_setup
-):
+def test_get_reservation_fails_for_user_not_admin_or_owner(_mongo_client, user_factory):
     """
      INTEGRATION TEST for GET /books/{id}/reservations/{id} as a user
      who does not own the reservation.
@@ -327,13 +335,22 @@ def test_get_reservation_fails_for_user_not_admin_or_owner(
     WHEN a GET request is made to the reservation's specific URL
     THEN the decorators should deny access and the view should return 403 Forbidden
     """
-    # Arrange - the test database and documents are set up in the fixture
-    book_id = reservation_setup["book"]["id"]
-    reservation_id = reservation_setup["reservation"]["id"]
+    # Arrange
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
 
     # Create a non-admin user who does not own the reservation
-    non_owner_user = user_factory(role='viewer', name='Non-Owner User')
-    non_owner_client = authenticated_client(non_owner_user)
+    non_owner_client = create_authenticated_client(
+        user_factory, role='viewer', name='Non-Owner User'
+    )
 
     # Act - attempt to access the reservation logged in as the non_owner
     response = non_owner_client.get(
@@ -349,9 +366,9 @@ def test_get_reservation_fails_for_user_not_admin_or_owner(
     assert "don't have the permission" in response_data["description"]
 
 def test_get_reservation_with_anonymous_user_redirects_to_login(
-        reservation_setup,
-        user_factory,
-        logout_client
+        _mongo_client,
+        client,
+        user_factory
 ):
     """
     GIVEN no logged-in user
@@ -359,16 +376,21 @@ def test_get_reservation_with_anonymous_user_redirects_to_login(
     THEN the login_required decorator should deny access
     AND the view should return a 302 redirect to the login page.
     """
-    # Arrange - the test database and documents are set up in the fixture
-    book_id = reservation_setup["book"]["id"]
-    reservation_id = reservation_setup["reservation"]["id"]
+    # Arrange
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
 
-    # Create a session with a logged out user
-    invisible_user = user_factory(role='viewer', name='Invisible User')
-    anon_client = logout_client(invisible_user)
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
+
     # Act
-    # Attempt to access the reservation GET endpoint while not logged in
-    response = anon_client.get(
+    # Attempt to access the reservation GET endpoint using a client with no session
+    response = client.get(
         f"/books/{book_id}/reservations/{reservation_id}"
     )
 
@@ -377,17 +399,24 @@ def test_get_reservation_with_anonymous_user_redirects_to_login(
     assert response.status_code == 302
     assert 'http://localhost:5000/auth/login' in response.location
 
-def test_get_reservation_with_non_existent_id_returns_404(reservation_setup):
+def test_get_reservation_with_non_existent_id_returns_404(_mongo_client, user_factory):
     """
     GIVEN a logged-in admin user and a correct book_id
     AND a reservation UUID that is valid in format but does not exist in the database
     WHEN a GET request is made to the reservation's specific URL
     THEN the application should return a 404 Not Found response.
     """
-    # Arrange - the test database and documents are set up in the fixture
-    test_admin_client = reservation_setup["test_admin_client"]
-    book_id = reservation_setup["book"]["id"]
-    reservation_id = reservation_setup["reservation"]["id"]
+    # Arrange
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
 
     # Create a correctly formatted uuid and check it DOESN'T match the real one
     wrong_res_id = str(uuid.uuid4())
@@ -405,7 +434,7 @@ def test_get_reservation_with_non_existent_id_returns_404(reservation_setup):
     result = response.get_json()
     assert "not found" in result.get("description")
 
-def test_delete_reservation_succeeds_for_owner_not_admin(reservation_setup):
+def test_delete_reservation_succeeds_for_owner_not_admin(_mongo_client, user_factory):
     """
      INTEGRATION TEST for DELETE /books/{id}/reservations/{id} as a user who owns the reservation.
 
@@ -414,10 +443,17 @@ def test_delete_reservation_succeeds_for_owner_not_admin(reservation_setup):
     THEN the decorators should grant access and the view should return a 200 OK
     with the cancelled reservation data.
     """
-    # Arrange - the test database and documents are set up in the fixture
-    owner_client = reservation_setup["owner_client"]
-    book_id = reservation_setup["book"]["id"]
-    reservation_id = reservation_setup["reservation"]["id"]
+    # Arrange
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
 
     # Act - attempt to access the reservation logged in as the owner
     response = owner_client.delete(
@@ -430,7 +466,7 @@ def test_delete_reservation_succeeds_for_owner_not_admin(reservation_setup):
     assert response_data['id'] == reservation_id
     assert response_data['state'] == 'cancelled'
 
-def test_delete_reservation_succeeds_for_admin_not_owner(reservation_setup):
+def test_delete_reservation_succeeds_for_admin_not_owner(_mongo_client, user_factory):
     """
     INTEGRATION TEST for DELETE /books/{id}/reservations/{id} as an admin.
 
@@ -439,10 +475,17 @@ def test_delete_reservation_succeeds_for_admin_not_owner(reservation_setup):
     THEN the decorators should grant access and the view should return a 200 OK
     with the cancelled reservation data.
     """
-    # Arrange - the test database and documents are set up in the fixture
-    test_admin_client = reservation_setup["test_admin_client"]
-    book_id = reservation_setup["book"]["id"]
-    reservation_id = reservation_setup["reservation"]["id"]
+    # Arrange
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
 
     # Act - attempt to access the reservation logged in as the admin
     response = test_admin_client.delete(
@@ -455,11 +498,7 @@ def test_delete_reservation_succeeds_for_admin_not_owner(reservation_setup):
     assert response_data['id'] == reservation_id
     assert response_data['state'] == 'cancelled'
 
-def test_delete_reservation_fails_for_user_not_admin_or_owner(
-        authenticated_client,
-        user_factory,
-        reservation_setup
-):
+def test_delete_reservation_fails_for_user_not_admin_or_owner(_mongo_client, user_factory):
     """
      INTEGRATION TEST for DELETE /books/{id}/reservations/{id} as a user
      who does not own the reservation.
@@ -469,12 +508,21 @@ def test_delete_reservation_fails_for_user_not_admin_or_owner(
     THEN the decorators should deny access and the view should return a 403 Forbidden
     """
     # Arrange - the test database and documents are set up in the fixture
-    book_id = reservation_setup["book"]["id"]
-    reservation_id = reservation_setup["reservation"]["id"]
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
 
     # Create a non-admin user who does not own the reservation
-    non_owner_user = user_factory(role='viewer', name='Non-Owner User')
-    non_owner_client = authenticated_client(non_owner_user)
+    non_owner_client = create_authenticated_client(
+        user_factory, role='viewer', name='Non-Owner User'
+    )
 
     # Act - attempt to access the reservation logged in as the non_owner
     response = non_owner_client.delete(
@@ -489,7 +537,7 @@ def test_delete_reservation_fails_for_user_not_admin_or_owner(
     assert response_data["name"] == "Forbidden"
     assert "don't have the permission" in response_data["description"]
 
-def test_delete_reservation_as_anonymous_user_redirects_to_login(client):
+def test_delete_reservation_as_anonymous_user_redirects_to_login(_mongo_client, client):
     """
     INTEGRATION SANITY CHECK:
     Verifies that the @login_required decorator is active on the DELETE endpoint.
@@ -504,3 +552,185 @@ def test_delete_reservation_as_anonymous_user_redirects_to_login(client):
     # Assert
     assert response.status_code == 302
     assert "http://localhost:5000/auth/login" in response.location
+
+def test_get_all_reservations_as_owner_not_admin(_mongo_client, user_factory):
+    """
+    INTEGRATION TEST for GET /reservations as an owner not an admin.
+
+    GIVEN a logged-in user and existing reservations, not all owned by this user
+    WHEN a GET request is made to the reservations endpoint
+    THEN access should be granted and a list of reservations should be returned
+    AND the list should ONLY contain reservations owned by this user.
+    """
+    # Arrange
+    # Set up the clients for the owner, admin, and non-owner
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+    non_owner_client = create_authenticated_client(
+        user_factory, role='viewer', name='Non-Owner User'
+    )
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    other_book_response = test_admin_client.post("/books", json=book_payloads[1])
+    assert other_book_response.status_code == 201
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
+
+    other_res_response = non_owner_client.post(f"/books/{book_id}/reservations")
+    assert other_res_response.status_code == 201
+
+    # Act
+    # Attempt to access the reservations GET all endpoint using the owner client
+    response = owner_client.get("/reservations")
+
+    # Assert
+    assert response.status_code == 200
+    response_data = response.get_json()
+    assert isinstance(response_data, list)
+    assert len(response_data) == 1
+    returned_reservation = response_data[0]
+    assert returned_reservation['id'] == reservation_id
+
+    # Complex test requiring many variables
+    # pylint: disable=too-many-locals
+def test_get_all_reservations_as_admin(_mongo_client, user_factory):
+    """
+    INTEGRATION TEST for GET /reservations as an admin not the owner.
+
+    GIVEN a logged-in admin user and existing reservations
+    WHEN a GET request is made to the reservations endpoint
+    THEN access should be granted and a list of reservations should be returned
+    AND the list should contain all existing reservations.
+    """
+    # Arrange
+    # Set up the clients for the owner, admin, and non-owner
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+    non_owner_client = create_authenticated_client(
+        user_factory, role='viewer', name='Non-Owner User'
+    )
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    other_book_response = test_admin_client.post("/books", json=book_payloads[1])
+    assert other_book_response.status_code == 201
+    other_book_id = other_book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
+
+    other_res_response = non_owner_client.post(f"/books/{other_book_id}/reservations")
+    assert other_res_response.status_code == 201
+    other_res_id = other_res_response.get_json()['id']
+
+    # Act
+    admin_response = test_admin_client.get("/reservations")
+
+    # Assert
+    assert admin_response.status_code == 200
+    admin_response_data = admin_response.get_json()
+    assert isinstance(admin_response_data, list)
+    assert len(admin_response_data) == 2
+    returned_reservation = admin_response_data[0]
+    assert returned_reservation['id'] == reservation_id
+    other_ret_reservation = admin_response_data[1]
+    assert other_ret_reservation['id'] == other_res_id
+
+    # Complex test requiring many variables
+    # pylint: disable=too-many-locals
+def test_get_all_reservations_as_admin_with_user_filter_succeeds(_mongo_client, user_factory):
+    """
+    INTEGRATION TEST for GET /reservations as an admin with user filter
+
+    GIVEN a logged-in admin user and existing reservations
+    WHEN a GET request is made to the reservations endpoint
+    WITH a user_id filter sent as a query parameter
+    THEN access should be granted and a list of reservations should be returned
+    AND the list should contain only reservations owned by the filtered user.
+    """
+    # Arrange
+    # Set up the clients for the owner, admin, and non-owner
+    test_admin_client = create_authenticated_client(user_factory, role='admin', name='Admin')
+    owner_client, owner_user = create_authenticated_client(
+        user_factory, role='viewer', name='Owner', include_user_doc=True
+    )
+    non_owner_client = create_authenticated_client(
+        user_factory, role='viewer', name='Non-Owner User'
+    )
+    owner_user_id = str(owner_user['_id'])
+
+    book_response = test_admin_client.post("/books", json=book_payloads[0])
+    assert book_response.status_code == 201
+    book_id = book_response.get_json()['id']
+
+    other_book_response = test_admin_client.post("/books", json=book_payloads[1])
+    assert other_book_response.status_code == 201
+    other_book_id = other_book_response.get_json()['id']
+
+    reservation_response = owner_client.post(f"/books/{book_id}/reservations")
+    assert reservation_response.status_code == 201
+    reservation_id = reservation_response.get_json()['id']
+
+    other_res_response = non_owner_client.post(f"/books/{other_book_id}/reservations")
+    assert other_res_response.status_code == 201
+
+    # Act
+    admin_response = test_admin_client.get(f"/reservations?user_id={owner_user_id}")
+
+    # Assert
+    assert admin_response.status_code == 200
+    admin_response_data = admin_response.get_json()
+    assert isinstance(admin_response_data, list)
+    assert len(admin_response_data) == 1
+    returned_reservation = admin_response_data[0]
+    assert returned_reservation['id'] == reservation_id
+
+def test_get_all_reservations_as_anonymous_user_redirects(client):
+    """
+    INTEGRATION TEST for GET /reservations as an anonymous user.
+
+    GIVEN an anonymous client
+    WHEN a GET request is made to the reservations endpoint
+    THEN access should be denied
+    AND the user should be redirected to the login page
+    """
+    # Act
+    response = client.get("/reservations")
+
+    # Assert
+    assert response.status_code == 302
+    assert "http://localhost:5000/auth/login" in response.location
+
+def test_get_all_reservations_for_user_with_no_reservations_returns_empty_list(
+        _mongo_client,
+        user_factory
+):
+    """
+    INTEGRATION TEST for GET /reservations for a user without reservations
+
+    GIVEN a logged-in non-admin user with no reservations
+    WHEN a GET request is made to the reservations endpoint
+    THEN access should be granted
+    AND an empty list should be returned with a 200 response code
+    """
+    # Arrange
+    # Set up the owner client
+    owner_client = create_authenticated_client(user_factory, role='viewer', name='Owner')
+
+    # Act
+    # Call the reservations endpoint as this user
+    response = owner_client.get("/reservations")
+
+    # Assert
+    assert response.status_code == 200
+    response_data = response.get_json()
+    assert isinstance(response_data, list)
+    assert len(response_data) == 0
