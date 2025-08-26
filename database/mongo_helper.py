@@ -8,18 +8,22 @@ def insert_book_to_mongo(new_book, books_collection):
         print("New book was successfully inserted.")
     return str(result.inserted_id)
 
-def find_all_books(books_collection):
+def find_all_books(books_collection, offset: int, limit: int):
     """
     Returns a list of all books in the collection.
     """
+    # Set the query filter to filter out deleted books
+    query_filter = {'state': {'$ne': 'deleted'}}
+
+    # Get the total count of documents for pagination metadata
+    total_count = books_collection.count_documents(query_filter)
+
     # Use find({}) to get a mongoDB Cursor object for all books
-    books_cursor = books_collection.find({})
+    #   AND apply offset() and limit() sequentially
+    books_cursor = books_collection.find(query_filter).skip(offset).limit(limit)
 
     # Use list() to iterate through the collection using the Cursor
     books_list = list(books_cursor)
-
-    # Count the items in the list
-    total_count = len(books_list)
 
     # Convert all the BSON _id to strings so the list can be JSON serialized
     for book in books_list:

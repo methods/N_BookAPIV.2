@@ -145,11 +145,19 @@ def get_all_books():
     return them in a JSON response
     including the total count.
     """
-    # if not books:
-    #     return jsonify({"error": "No books found"}), 404
+    # 1. Parse and validate query parameters with defaults.
+    try:
+        offset = request.args.get("offset", default=0, type=int)
+        limit = request.args.get("limit", default=20, type=int)
+    except (TypeError, ValueError):
+        return jsonify({"error": "offset and limit must be integers."}), 400
+
+    # 2. Add validation rules.
+    if offset < 0 or limit < 0:
+        return jsonify({"error": "offset and limit must be non-negative integers."}), 400
 
     books_collection = get_book_collection()
-    books_list_result, _total_count_result = find_all_books(books_collection)
+    books_list_result, _total_count_result = find_all_books(books_collection, offset=offset, limit=limit)
 
     all_books = []
     # extract host from the request

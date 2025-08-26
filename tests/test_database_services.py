@@ -53,16 +53,25 @@ def test_find_all_books():
         {'id': fake_book_id_1, 'title': 'Book One'},
         {'id': fake_book_id_2, 'title': 'Book Two'}
     ]
-    # Configure the mock collection's find() method to return our fake data
-    #    (A list is a valid iterable, so it works as a fake cursor for the test)
-    mock_books_collection.find.return_value = mock_db_data
+    # Configure the mock collection's find() method to return a mock cursor object
+    mock_cursor = MagicMock()
+    mock_books_collection.find.return_value = mock_cursor
+
+    # Configure the mock cursor's skip() method to return itself like the real method does
+    mock_cursor.skip.return_value = mock_cursor
+
+    # Configure the mock cursor's limit() method to return the final data and end the chain of mocks
+    mock_cursor.limit.return_value = mock_db_data
+
+    # Also configure the Count Documents call on the collection
+    mock_books_collection.count_documents.return_value = len(mock_db_data)
 
     # Act
-    books_list_result, total_count_result = find_all_books(mock_books_collection)
+    books_list_result, total_count_result = find_all_books(mock_books_collection, offset=10, limit=5)
 
     # Assert
     # Find called correctly?
-    mock_books_collection.find.assert_called_once_with({})
+    mock_books_collection.find.assert_called_once_with({'state': {'$ne': 'deleted'}})
 
     # Did the function return a list of the correct length and are the test books present?
     assert isinstance(books_list_result, list)
