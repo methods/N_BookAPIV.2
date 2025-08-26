@@ -74,6 +74,53 @@ def test_find_all_books():
     assert isinstance(total_count_result, int)
     assert total_count_result == 2
 
+def test_find_all_books_pagination_works(mocker):
+    """
+    UNIT TEST for find_all_books pagination function.
+
+    GIVEN query filters for offset and limit
+    WHEN find_all_books is called
+    THEN it should call find() with the skip() and limit() filters appplied
+    AND return a list of processed books along with the total count.
+    """
+    # Arrange
+    # Mock the books collection
+    mock_books_collection = MagicMock()
+    # Test data
+    fake_book_id_1 = ObjectId()
+    fake_book_id_2 = ObjectId()
+    mock_db_data = [
+        {'id': fake_book_id_1, 'title': 'Book One'},
+        {'id': fake_book_id_2, 'title': 'Book Two'}
+    ]
+    # Configure the mock collection's find() method to return a mock cursor object
+    mock_cursor = MagicMock()
+    mock_books_collection.find.return_value = mock_cursor
+
+    # Configure the mock cursor's skip() method to return itself like the real method does
+    mock_cursor.skip.return_value = mock_cursor
+
+    # Configure the mock cursor's limit() method to return the final data and end the chain of mocks
+    mock_cursor.limit.return_value = mock_db_data
+
+    # Also configure the Count Documents call on the collection
+    mock_books_collection.count_documents.return_value = len(mock_db_data)
+
+    # Act
+    books_list_result, total_count_result = find_all_books(mock_books_collection, offset=10, limit=5)
+
+    # Assert
+    # Check the find() call
+    mock_books_collection.find.assert_called_once_with({'state': {'$ne': 'deleted'}})
+
+    # Check the calls on the mock cursor object
+    mock_cursor.skip.assert_called_once_with(10)
+    mock_cursor.limit.assert_called_once_with(5)
+
+    # Check the result
+    assert books_list_result == mock_db_data
+    assert total_count_result == len(mock_db_data)
+
 def test_find_one_book():
     """
     GIVEN a mocked find_one that behaves conditionally
