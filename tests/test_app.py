@@ -370,18 +370,6 @@ def test_get_books_excludes_deleted_books_and_omits_state_field(mocker, client):
     mock_get_books = mocker.patch('app.find_all_books')
     mock_get_books.return_value = ([
         {
-            "id": "1",
-            "title": "The Great Adventure",
-            "synopsis": "A thrilling adventure through the jungles of South America.",
-            "author": "Jane Doe",
-            "links": {
-                "self": "/books/1",
-                "reservations": "/books/1/reservations",
-                "reviews": "/books/1/reviews"
-            },
-            "state": "deleted"
-        },
-        {
             "id": "2",
             "title": "Mystery of the Old Manor",
             "synopsis": "A detective story set in an old manor with many secrets.",

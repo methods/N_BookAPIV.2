@@ -164,13 +164,11 @@ def get_all_books():
     host = request.host_url
 
     for book in books_list_result:
-        # check if the book has the "deleted" state
-        if book.get("state")!="deleted":
-            # if the book has a state other than "deleted" remove the state field before appending
-            book_copy = copy.deepcopy(book)
-            book_copy.pop("state", None)
-            book_with_hostname = append_hostname(book_copy, host)
-            all_books.append(book_with_hostname)
+        # Remove the state field and append the hostname to the links fields
+        book_copy = copy.deepcopy(book)
+        book_copy.pop("state", None)
+        book_with_hostname = append_hostname(book_copy, host)
+        all_books.append(book_with_hostname)
 
     # validation
     required_fields = ["id", "title", "synopsis", "author", "links"]
