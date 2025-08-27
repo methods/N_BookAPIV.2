@@ -1,6 +1,7 @@
 # pylint: disable=missing-docstring
 import os
 import uuid
+import pytest
 from bson.objectid import ObjectId
 import pytest
 from pymongo import MongoClient
@@ -215,6 +216,31 @@ def test_get_all_books_gets_from_mongodb(admin_client):
     # Assert: Check the title of one of the inserted books
     book_titles = [book['title'] for book in response_data['items']]
     assert "The Midnight Library" in book_titles
+
+@pytest.mark.parametrize(
+    "query_params, expected_error_message",
+    [
+        # Test cases for Type validation
+        ("limit=abc", "must be integers"),
+        ("offset=xyz", "must be integers"),
+        # Test cases for Range validation
+        ("limit=-1", "must be non-negative integers"),
+        ("offset=-10", "must be non-negative integers")
+    ]
+)
+def test_get_books_with_invalid_pagination_params_returns_400(client, query_params, expected_error_message):
+    """
+    INTEGRATION test for pagination parameters.
+
+    Verifies that invalid pagination parameters are handled correctly.
+    """
+    # Act
+    # Call get_books using the parametrized query params
+    response = client.get(f"/books?{query_params}")
+
+    # Assert
+    assert response.status_code == 400
+    assert response.content_type == "application/json"
 
 def test_update_soft_deleted_book_returns_404(_mongo_client, admin_client):
     """

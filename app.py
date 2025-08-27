@@ -145,14 +145,20 @@ def get_all_books():
     return them in a JSON response
     including the total count.
     """
-    # 1. Parse and validate query parameters with defaults.
+    # Get the parameters as strings.
+    offset_str = request.args.get('offset', '0') # Default to string '0'
+    limit_str = request.args.get('limit', '20')  # Default to string '20'
+
+    # Convert the strings to integers.
     try:
-        offset = request.args.get("offset", default=0, type=int)
-        limit = request.args.get("limit", default=20, type=int)
+        offset = int(offset_str)
+        print(offset)
+        limit = int(limit_str)
+        print(limit)
     except (TypeError, ValueError):
         return jsonify({"error": "offset and limit must be integers."}), 400
 
-    # 2. Add validation rules.
+    # Add validation rules.
     if offset < 0 or limit < 0:
         return jsonify({"error": "offset and limit must be non-negative integers."}), 400
 
