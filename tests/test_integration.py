@@ -159,7 +159,7 @@ def test_post_route_inserts_to_mongodb(_mongo_client, admin_client):
     assert saved_book is not None
     assert saved_book["author"] == "Matt Haig"
 
-def test_get_all_books_gets_from_mongodb(admin_client):
+def test_get_all_books_gets_from_mongodb(admin_client, _mongo_client):
 
     # Arrange
     # POST several books to the test database
@@ -197,7 +197,7 @@ def test_get_all_books_gets_from_mongodb(admin_client):
         ("offset=-10", "must be non-negative integers")
     ]
 )
-def test_get_books_with_invalid_pagination_params_returns_400(client, query_params, expected_error_message):
+def test_get_books_with_invalid_pagination_params_returns_400(client, query_params, expected_error_message, _mongo_client):
     """
     INTEGRATION test for pagination parameters.
 
@@ -210,6 +210,23 @@ def test_get_books_with_invalid_pagination_params_returns_400(client, query_para
     # Assert
     assert response.status_code == 400
     assert response.content_type == "application/json"
+
+def test_get_books_with_limit_over_100_caps_to_100(_mongo_client, client):
+    """
+    INTEGRATION test for pagination parameters.
+
+    Verifies that maximum document limit is set to 100.
+    """
+    # Act
+    # Call get_books with limit set to over 100
+    response = client.get("/books?limit=999")
+
+    # Assert
+    assert response.status_code == 200
+    assert response.content_type == "application/json"
+    limit_result = response.get_json()
+    print(limit_result)
+    assert limit_result["limit"] == 100
 
 def test_update_soft_deleted_book_returns_404(_mongo_client, admin_client):
     """

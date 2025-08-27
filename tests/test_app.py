@@ -313,6 +313,8 @@ def test_get_all_returns_correctly_when_list_is_empty(mocker, client):
     response_data = response.get_json()
     assert response_data == {
         "total_count": 0,
+        "offset": 0,
+        "limit": 20,
         "items": []
     }
     mock_get_books.assert_called_once()

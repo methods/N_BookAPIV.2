@@ -152,9 +152,7 @@ def get_all_books():
     # Convert the strings to integers.
     try:
         offset = int(offset_str)
-        print(offset)
         limit = int(limit_str)
-        print(limit)
     except (TypeError, ValueError):
         return jsonify({"error": "offset and limit must be integers."}), 400
 
@@ -162,8 +160,13 @@ def get_all_books():
     if offset < 0 or limit < 0:
         return jsonify({"error": "offset and limit must be non-negative integers."}), 400
 
+    # Cap the limit to a maximum reasonable value
+    max_limit = 100
+    if limit > max_limit:
+        limit = max_limit
+
     books_collection = get_book_collection()
-    books_list_result, _total_count_result = find_all_books(books_collection, offset=offset, limit=limit)
+    books_list_result, total_count_result = find_all_books(books_collection, offset=offset, limit=limit)
 
     all_books = []
     # extract host from the request
@@ -196,9 +199,10 @@ def get_all_books():
         print(error_message)
         return jsonify({"error": error_message}), 500
 
-    count_books = len(all_books)
     response_data = {
-        "total_count" : count_books,
+        "total_count" : total_count_result,
+        "offset" : offset,
+        "limit" : limit,
         "items" : all_books
     }
 
