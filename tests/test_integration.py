@@ -109,6 +109,23 @@ def create_authenticated_client(
         return new_client, user_doc
     return new_client
 
+def create_valid_book_document(title="Test Book", author="Test Author", synopsis="A synopsis."):
+    """Creates a dictionary representing a complete, valid book document."""
+    import uuid
+    book_uuid = str(uuid.uuid4())
+    return {
+        'id': book_uuid,
+        'title': title,
+        'author': author,
+        'synopsis': synopsis,
+        'state': 'active',
+        'links': {
+            'self': f"/books/{book_uuid}",
+            'reservations': f"/books/{book_uuid}/reservations",
+            'reviews': f"/books/{book_uuid}/reviews"
+        }
+    }
+
 # Define multiple book payloads for testing
 book_payloads = [
     {
@@ -227,6 +244,50 @@ def test_get_books_with_limit_over_100_caps_to_100(_mongo_client, client):
     limit_result = response.get_json()
     print(limit_result)
     assert limit_result["limit"] == 100
+
+def test_get_books_pagination_returns_correct_page(_mongo_client, client):
+    """
+    INTEGRATION test for pagination parameters.
+
+    Verifies that pagination is returned correctly.
+    """
+    # Arrange
+    # Set up the database and collection
+    db = _mongo_client['test_database']
+    collection = db['test_books']
+
+    # Use the helper function to add 25 books to the test db
+    books_to_insert = []
+    for i in range(25):
+        books_to_insert.append(
+            create_valid_book_document(title=f"Book {i:02d}")
+        )
+    collection.insert_many(books_to_insert)
+
+    # Set the params for the pagination
+    offset = 10
+    limit = 10
+
+    # Act
+    # Call the get_all_books route with the params set
+    response = client.get(f"/books?offset={offset}&limit={limit}")
+
+    # Assert
+    assert response.status_code == 200
+    response_data = response.get_json()
+
+    # Check the pagination metadata
+    assert response_data['total_count'] == 25
+    assert response_data['offset'] == 10
+    assert response_data['limit'] == 10
+
+    # Check the content of the page
+    items = response_data['items']
+    assert len(items) == 10
+
+    # The items list should contain books 10 through 19.
+    assert items[0]['title'] == "Book 10"
+    assert items[9]['title'] == "Book 19"
 
 def test_update_soft_deleted_book_returns_404(_mongo_client, admin_client):
     """
