@@ -109,37 +109,6 @@ def create_authenticated_client(
         return new_client, user_doc
     return new_client
 
-@pytest.fixture(name="reservation_setup")
-def reservation_scenario(user_factory, authenticated_client):
-    """
-    Sets up a complete scenario for reservation tests and returns the
-    key components in a dictionary.
-    """
-    # 1. Create the user personas and clients
-    owner_user = user_factory(role='viewer', name='Scenario Owner')
-    admin_user = user_factory(role='admin', name='Scenario Admin')
-    owner_client = authenticated_client(owner_user)
-    test_admin_client = authenticated_client(admin_user)
-
-    # 2. Use the admin to create the book
-    book_res = test_admin_client.post("/books", json=book_payloads[0])
-    assert book_res.status_code == 201
-    created_book = book_res.get_json()
-
-    # 3. Use the owner to create the reservation
-    res_res = owner_client.post(f"/books/{created_book['id']}/reservations")
-    assert res_res.status_code == 201
-    created_reservation = res_res.get_json()
-
-    # 4. Bundle everything into a simple dictionary and return it.
-    return {
-        "test_admin_client": test_admin_client,
-        "owner_client": owner_client,
-        "owner_user": owner_user,
-        "book": created_book,
-        "reservation": created_reservation
-    }
-
 # Define multiple book payloads for testing
 book_payloads = [
     {
