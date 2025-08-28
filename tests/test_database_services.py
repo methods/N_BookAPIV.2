@@ -67,7 +67,9 @@ def test_find_all_books():
     mock_books_collection.count_documents.return_value = len(mock_db_data)
 
     # Act
-    books_list_result, total_count_result = find_all_books(mock_books_collection, offset=10, limit=5)
+    books_list_result, total_count_result = find_all_books(
+        mock_books_collection, offset=10, limit=5
+    )
 
     # Assert
     # Find called correctly?
@@ -83,7 +85,7 @@ def test_find_all_books():
     assert isinstance(total_count_result, int)
     assert total_count_result == 2
 
-def test_find_all_books_pagination_works(mocker):
+def test_find_all_books_pagination_works():
     """
     UNIT TEST for find_all_books pagination function.
 
@@ -116,7 +118,9 @@ def test_find_all_books_pagination_works(mocker):
     mock_books_collection.count_documents.return_value = len(mock_db_data)
 
     # Act
-    books_list_result, total_count_result = find_all_books(mock_books_collection, offset=10, limit=5)
+    books_list_result, total_count_result = find_all_books(
+        mock_books_collection, offset=10, limit=5
+    )
 
     # Assert
     # Check the find() call

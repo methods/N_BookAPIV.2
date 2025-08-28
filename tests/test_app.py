@@ -332,38 +332,40 @@ def test_get_all_books_returns_500_if_service_returns_none(mocker, client):
     assert "error" in response_data
     assert response_data["error"] == "An internal server error occurred."
 
-def test_missing_fields_in_book_object_returned_by_database(mocker, client):
-    # Arrange
-    # Mock the service function in app.py that get_all depends on
-    mock_get_books = mocker.patch('app.find_all_books')
-    mock_get_books.return_value = ([
-            {
-                "id": "1",
-                "title": "The Great Adventure",
-                "synopsis": "A thrilling adventure through the jungles of South America.",
-                "author": "Jane Doe",
-                "links": {
-                    "self": "/books/1",
-                    "reservations": "/books/1/reservations",
-                    "reviews": "/books/1/reviews"
-                },
-                "state": "active"
-            },
-            {
-                "id": "2",
-                "title": "Mystery of the Old Manor",
-                "links": {
-                    "self": "/books/2",
-                    "reservations": "/books/2/reservations",
-                    "reviews": "/books/2/reviews"
-                },
-                "state": "active"
-            }
-                                   ], 0)
-
-    response = client.get("/books")
-    assert response.status_code == 500
-    assert "Missing fields" in response.get_json()["error"]
+# This test has been commented out as the validation code it tests has also
+#   been commented out due to obsolescence.
+# def test_missing_fields_in_book_object_returned_by_database(mocker, client):
+#     # Arrange
+#     # Mock the service function in app.py that get_all depends on
+#     mock_get_books = mocker.patch('app.find_all_books')
+#     mock_get_books.return_value = ([
+#             {
+#                 "id": "1",
+#                 "title": "The Great Adventure",
+#                 "synopsis": "A thrilling adventure through the jungles of South America.",
+#                 "author": "Jane Doe",
+#                 "links": {
+#                     "self": "/books/1",
+#                     "reservations": "/books/1/reservations",
+#                     "reviews": "/books/1/reviews"
+#                 },
+#                 "state": "active"
+#             },
+#             {
+#                 "id": "2",
+#                 "title": "Mystery of the Old Manor",
+#                 "links": {
+#                     "self": "/books/2",
+#                     "reservations": "/books/2/reservations",
+#                     "reviews": "/books/2/reviews"
+#                 },
+#                 "state": "active"
+#             }
+#                                    ], 0)
+#
+#     response = client.get("/books")
+#     assert response.status_code == 500
+#     assert "Missing fields" in response.get_json()["error"]
 
  #-------- Tests for filter GET /books by delete ----------------
 def test_get_books_excludes_deleted_books_and_omits_state_field(mocker, client):

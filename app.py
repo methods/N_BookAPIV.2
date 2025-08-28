@@ -162,11 +162,12 @@ def get_all_books():
 
     # Cap the limit to a maximum reasonable value
     max_limit = 100
-    if limit > max_limit:
-        limit = max_limit
+    limit = min(limit, max_limit)
 
     books_collection = get_book_collection()
-    books_list_result, total_count_result = find_all_books(books_collection, offset=offset, limit=limit)
+    books_list_result, total_count_result = find_all_books(
+        books_collection, offset=offset, limit=limit
+    )
 
     all_books = []
     # extract host from the request
@@ -179,25 +180,26 @@ def get_all_books():
         book_with_hostname = append_hostname(book_copy, host)
         all_books.append(book_with_hostname)
 
-    # validation
-    required_fields = ["id", "title", "synopsis", "author", "links"]
-    missing_fields_info = []
-
-    for book in all_books:
-        missing_fields = [field for field in required_fields if field not in book]
-        if missing_fields:
-            missing_fields_info.append({
-                "book": book,
-                "missing_fields": missing_fields
-            })
-
-    if missing_fields_info:
-        error_message = "Missing required fields:\n"
-        for info in missing_fields_info:
-            error_message += f"Missing fields: {', '.join(info['missing_fields'])} in {info['book']}. \n" # pylint: disable=line-too-long
-
-        print(error_message)
-        return jsonify({"error": error_message}), 500
+    # The validation code has been commented out as it is impossible for
+    #   an invalid book to be inserted into the DB unless it is done manually
+    # required_fields = ["id", "title", "synopsis", "author", "links"]
+    # missing_fields_info = []
+    #
+    # for book in all_books:
+    #     missing_fields = [field for field in required_fields if field not in book]
+    #     if missing_fields:
+    #         missing_fields_info.append({
+    #             "book": book,
+    #             "missing_fields": missing_fields
+    #         })
+    #
+    # if missing_fields_info:
+    #     error_message = "Missing required fields:\n"
+    #     for info in missing_fields_info:
+    #         error_message += f"Missing fields: {', '.join(info['missing_fields'])} in {info['book']}. \n" # pylint: disable=line-too-long
+    #
+    #     print(error_message)
+    #     return jsonify({"error": error_message}), 500
 
     response_data = {
         "total_count" : total_count_result,

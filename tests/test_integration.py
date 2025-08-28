@@ -3,7 +3,6 @@ import os
 import uuid
 import pytest
 from bson.objectid import ObjectId
-import pytest
 from pymongo import MongoClient
 from database import user_services
 from app import app
@@ -111,7 +110,6 @@ def create_authenticated_client(
 
 def create_valid_book_document(title="Test Book", author="Test Author", synopsis="A synopsis."):
     """Creates a dictionary representing a complete, valid book document."""
-    import uuid
     book_uuid = str(uuid.uuid4())
     return {
         'id': book_uuid,
@@ -214,7 +212,12 @@ def test_get_all_books_gets_from_mongodb(admin_client, _mongo_client):
         ("offset=-10", "must be non-negative integers")
     ]
 )
-def test_get_books_with_invalid_pagination_params_returns_400(client, query_params, expected_error_message, _mongo_client):
+def test_get_books_with_invalid_pagination_params_returns_400(
+        client,
+        query_params,
+        expected_error_message,
+        _mongo_client
+): # pylint: disable=unused-argument
     """
     INTEGRATION test for pagination parameters.
 
