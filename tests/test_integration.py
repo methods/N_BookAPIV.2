@@ -1,8 +1,8 @@
 # pylint: disable=missing-docstring
 import os
 import uuid
-from bson.objectid import ObjectId
 import pytest
+from bson.objectid import ObjectId
 from pymongo import MongoClient
 from database import user_services
 from app import app
@@ -108,35 +108,20 @@ def create_authenticated_client(
         return new_client, user_doc
     return new_client
 
-@pytest.fixture(name="reservation_setup")
-def reservation_scenario(user_factory, authenticated_client):
-    """
-    Sets up a complete scenario for reservation tests and returns the
-    key components in a dictionary.
-    """
-    # 1. Create the user personas and clients
-    owner_user = user_factory(role='viewer', name='Scenario Owner')
-    admin_user = user_factory(role='admin', name='Scenario Admin')
-    owner_client = authenticated_client(owner_user)
-    test_admin_client = authenticated_client(admin_user)
-
-    # 2. Use the admin to create the book
-    book_res = test_admin_client.post("/books", json=book_payloads[0])
-    assert book_res.status_code == 201
-    created_book = book_res.get_json()
-
-    # 3. Use the owner to create the reservation
-    res_res = owner_client.post(f"/books/{created_book['id']}/reservations")
-    assert res_res.status_code == 201
-    created_reservation = res_res.get_json()
-
-    # 4. Bundle everything into a simple dictionary and return it.
+def create_valid_book_document(title="Test Book", author="Test Author", synopsis="A synopsis."):
+    """Creates a dictionary representing a complete, valid book document."""
+    book_uuid = str(uuid.uuid4())
     return {
-        "test_admin_client": test_admin_client,
-        "owner_client": owner_client,
-        "owner_user": owner_user,
-        "book": created_book,
-        "reservation": created_reservation
+        'id': book_uuid,
+        'title': title,
+        'author': author,
+        'synopsis': synopsis,
+        'state': 'active',
+        'links': {
+            'self': f"/books/{book_uuid}",
+            'reservations': f"/books/{book_uuid}/reservations",
+            'reviews': f"/books/{book_uuid}/reviews"
+        }
     }
 
 # Define multiple book payloads for testing
@@ -189,7 +174,7 @@ def test_post_route_inserts_to_mongodb(_mongo_client, admin_client):
     assert saved_book is not None
     assert saved_book["author"] == "Matt Haig"
 
-def test_get_all_books_gets_from_mongodb(admin_client):
+def test_get_all_books_gets_from_mongodb(admin_client, _mongo_client):
 
     # Arrange
     # POST several books to the test database
@@ -215,6 +200,97 @@ def test_get_all_books_gets_from_mongodb(admin_client):
     # Assert: Check the title of one of the inserted books
     book_titles = [book['title'] for book in response_data['items']]
     assert "The Midnight Library" in book_titles
+
+@pytest.mark.parametrize(
+    "query_params, expected_error_message",
+    [
+        # Test cases for Type validation
+        ("limit=abc", "must be integers"),
+        ("offset=xyz", "must be integers"),
+        # Test cases for Range validation
+        ("limit=-1", "must be non-negative integers"),
+        ("offset=-10", "must be non-negative integers")
+    ]
+)
+def test_get_books_with_invalid_pagination_params_returns_400(
+        client,
+        query_params,
+        expected_error_message,
+        _mongo_client
+): # pylint: disable=unused-argument
+    """
+    INTEGRATION test for pagination parameters.
+
+    Verifies that invalid pagination parameters are handled correctly.
+    """
+    # Act
+    # Call get_books using the parametrized query params
+    response = client.get(f"/books?{query_params}")
+
+    # Assert
+    assert response.status_code == 400
+    assert response.content_type == "application/json"
+
+def test_get_books_with_limit_over_100_caps_to_100(_mongo_client, client):
+    """
+    INTEGRATION test for pagination parameters.
+
+    Verifies that maximum document limit is set to 100.
+    """
+    # Act
+    # Call get_books with limit set to over 100
+    response = client.get("/books?limit=999")
+
+    # Assert
+    assert response.status_code == 200
+    assert response.content_type == "application/json"
+    limit_result = response.get_json()
+    print(limit_result)
+    assert limit_result["limit"] == 100
+
+def test_get_books_pagination_returns_correct_page(_mongo_client, client):
+    """
+    INTEGRATION test for pagination parameters.
+
+    Verifies that pagination is returned correctly.
+    """
+    # Arrange
+    # Set up the database and collection
+    db = _mongo_client['test_database']
+    collection = db['test_books']
+
+    # Use the helper function to add 25 books to the test db
+    books_to_insert = []
+    for i in range(25):
+        books_to_insert.append(
+            create_valid_book_document(title=f"Book {i:02d}")
+        )
+    collection.insert_many(books_to_insert)
+
+    # Set the params for the pagination
+    offset = 10
+    limit = 10
+
+    # Act
+    # Call the get_all_books route with the params set
+    response = client.get(f"/books?offset={offset}&limit={limit}")
+
+    # Assert
+    assert response.status_code == 200
+    response_data = response.get_json()
+
+    # Check the pagination metadata
+    assert response_data['total_count'] == 25
+    assert response_data['offset'] == 10
+    assert response_data['limit'] == 10
+
+    # Check the content of the page
+    items = response_data['items']
+    assert len(items) == 10
+
+    # The items list should contain books 10 through 19.
+    assert items[0]['title'] == "Book 10"
+    assert items[9]['title'] == "Book 19"
 
 def test_update_soft_deleted_book_returns_404(_mongo_client, admin_client):
     """

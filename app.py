@@ -145,48 +145,66 @@ def get_all_books():
     return them in a JSON response
     including the total count.
     """
-    # if not books:
-    #     return jsonify({"error": "No books found"}), 404
+    # Get the parameters as strings.
+    offset_str = request.args.get('offset', '0') # Default to string '0'
+    limit_str = request.args.get('limit', '20')  # Default to string '20'
+
+    # Convert the strings to integers.
+    try:
+        offset = int(offset_str)
+        limit = int(limit_str)
+    except (TypeError, ValueError):
+        return jsonify({"error": "offset and limit must be integers."}), 400
+
+    # Add validation rules.
+    if offset < 0 or limit < 0:
+        return jsonify({"error": "offset and limit must be non-negative integers."}), 400
+
+    # Cap the limit to a maximum reasonable value
+    max_limit = 100
+    limit = min(limit, max_limit)
 
     books_collection = get_book_collection()
-    books_list_result, _total_count_result = find_all_books(books_collection)
+    books_list_result, total_count_result = find_all_books(
+        books_collection, offset=offset, limit=limit
+    )
 
     all_books = []
     # extract host from the request
     host = request.host_url
 
     for book in books_list_result:
-        # check if the book has the "deleted" state
-        if book.get("state")!="deleted":
-            # if the book has a state other than "deleted" remove the state field before appending
-            book_copy = copy.deepcopy(book)
-            book_copy.pop("state", None)
-            book_with_hostname = append_hostname(book_copy, host)
-            all_books.append(book_with_hostname)
+        # Remove the state field and append the hostname to the links fields
+        book_copy = copy.deepcopy(book)
+        book_copy.pop("state", None)
+        book_with_hostname = append_hostname(book_copy, host)
+        all_books.append(book_with_hostname)
 
-    # validation
-    required_fields = ["id", "title", "synopsis", "author", "links"]
-    missing_fields_info = []
+    # The validation code has been commented out as it is impossible for
+    #   an invalid book to be inserted into the DB unless it is done manually
+    # required_fields = ["id", "title", "synopsis", "author", "links"]
+    # missing_fields_info = []
+    #
+    # for book in all_books:
+    #     missing_fields = [field for field in required_fields if field not in book]
+    #     if missing_fields:
+    #         missing_fields_info.append({
+    #             "book": book,
+    #             "missing_fields": missing_fields
+    #         })
+    #
+    # if missing_fields_info:
+    #     error_message = "Missing required fields:\n"
+    #     for info in missing_fields_info:
+    #         error_message += f"Missing fields: {', '.join(info['missing_fields'])} in {info['book']}. \n" # pylint: disable=line-too-long
+    #
+    #     print(error_message)
+    #     return jsonify({"error": error_message}), 500
 
-    for book in all_books:
-        missing_fields = [field for field in required_fields if field not in book]
-        if missing_fields:
-            missing_fields_info.append({
-                "book": book,
-                "missing_fields": missing_fields
-            })
-
-    if missing_fields_info:
-        error_message = "Missing required fields:\n"
-        for info in missing_fields_info:
-            error_message += f"Missing fields: {', '.join(info['missing_fields'])} in {info['book']}. \n" # pylint: disable=line-too-long
-
-        print(error_message)
-        return jsonify({"error": error_message}), 500
-
-    count_books = len(all_books)
     response_data = {
-        "total_count" : count_books,
+        "total_count" : total_count_result,
+        "offset" : offset,
+        "limit" : limit,
         "items" : all_books
     }
 
