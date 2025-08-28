@@ -88,8 +88,16 @@ components:
       properties:
         total_count:
           type: integer
-          description: Total number of books.
-          example: 3
+          description: The total number of books available in the collection that match the query.
+          example: 5432
+        offset:
+          type: integer
+          description: The offset that was used for this page of results.
+          example: 0
+        limit:
+          type: integer
+          description: The limit that was used for this page of results.
+          example: 20
         items:
           type: array
           items:
@@ -260,41 +268,55 @@ paths:
     get:
       tags:
         - Books
-      summary: Returns all books in the database
-      description: Retrieve all books from the database and return them in a JSON response including the total count.
+      summary: Returns a paginated list of books
+      description: Retrieve a paginated list of all active books from the database.
       operationId: getAllBooks
+      parameters:
+        - name: offset
+          in: query
+          required: false
+          description: The number of items to skip for pagination.
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: limit
+          in: query
+          required: false
+          description: The maximum number of items to return per page. The server enforces a maximum of 100.
+          schema:
+            type: integer
+            minimum: 0
+            maximum: 100 # Documents the server-side cap
+            default: 20
       responses:
         '200':
-          description: A list of all books including the total count.
+          description: A paginated list of books.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/BookListResponse'
-                properties:
-                  total_count:
-                    type: integer
-                    description: The number of books returned.
-                    example: 3
-                  items:
-                    type: array
-                    items:
-                      $ref: '#/components/schemas/BookOutput'
-        '404':
-          description: No books found in the database.
+        '400':
+          description: Invalid pagination parameters provided.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                error: "No books found"
+              examples:
+                nonInteger:
+                  summary: Non-integer value for offset or limit
+                  value:
+                    error: "offset and limit must be integers."
+                negativeValue:
+                  summary: Negative value for offset or limit
+                  value:
+                    error: "offset and limit must be non-negative integers."
         '500':
-          description: Internal Server Error. An unexpected error occurred.
+          description: Internal Server Error.
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
-              example:
-                error: "An unexpected error occurred."
   # --------------------------------------------
   /books/{book_id}: 
   # --------------------------------------------
